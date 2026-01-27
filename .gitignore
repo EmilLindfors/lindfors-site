@@ -7,9 +7,7 @@ fonts/
 # Rust build artifacts
 target/
 
-# Generated PDFs (rebuilt from source)
-static/pdf/
-static/cv.pdf
+# Generated PDFs are committed (built locally before deploy)
 
 # Symlinks
 zotero-cite
