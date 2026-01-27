@@ -1,0 +1,43 @@
+# The URL the site will be built for
+base_url = "https://lindfors.no"
+
+# Site title and description
+title = "lindfors.no"
+description = "Writings on aquaculture, Rust programming, sensors, and scientific topics"
+
+# Whether to automatically compile all Sass files in the sass directory
+compile_sass = true
+
+# Whether to build a search index to be used later on by a JavaScript library
+build_search_index = true
+
+# Generate Atom feed
+generate_feeds = true
+feed_filenames = ["atom.xml"]
+
+# Taxonomies
+taxonomies = [
+    { name = "tags", feed = true },
+    { name = "categories", feed = true },
+]
+
+[markdown]
+
+[markdown.highlighting]
+theme = "catppuccin-mocha"
+
+[extra]
+# Author information
+author = "Emil Lindfors"
+author_email = "emil@lindfors.no"
+author_bio = "Researcher working on aquaculture innovation, sensor systems, and sustainable technology. Writing about Rust, science, and the intersection of technology and nature."
+
+# Social links (optional)
+github = "https://github.com/emillindfors"
+linkedin = "https://linkedin.com/in/emil-havbruk"
+
+# Enable KaTeX math rendering
+katex = true
+
+# Enable table of contents by default
+toc = true

@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+
+{% import "macros.html" as macros %}
+
+{% block title %}{{ page.title }} | {{ config.title }}{% endblock %}
+
+{% block description %}{{ page.description | default(value=config.description) }}{% endblock %}
+
+{% block content %}
+<article class="post-layout">
+    <!-- Main content column -->
+    <div class="post-main">
+        <header class="post-header">
+            <h1>{{ page.title }}</h1>
+            {% if page.description %}
+            <p class="post-description">{{ page.description }}</p>
+            {% endif %}
+        </header>
+
+        <div class="post-content">
+            {{ page.content | safe }}
+        </div>
+
+        {% if page.extra.references %}
+        <section class="references">
+            <h2>References</h2>
+            <ol class="reference-list">
+                {% for ref in page.extra.references %}
+                <li id="ref-{{ ref.key }}">
+                    {{ macros::format_reference(ref=ref) }}
+                </li>
+                {% endfor %}
+            </ol>
+        </section>
+        {% endif %}
+
+        <footer class="post-footer">
+            {% if page.earlier or page.later %}
+            <nav class="post-navigation">
+                {% if page.earlier %}
+                <a href="{{ page.earlier.permalink }}" class="nav-earlier">&larr; {{ page.earlier.title }}</a>
+                {% endif %}
+                {% if page.later %}
+                <a href="{{ page.later.permalink }}" class="nav-later">{{ page.later.title }} &rarr;</a>
+                {% endif %}
+            </nav>
+            {% endif %}
+        </footer>
+    </div>
+
+    <!-- Sidebar column -->
+    <aside class="post-sidebar">
+        <div class="sidebar-sticky">
+            <!-- Table of Contents (top priority for navigation) -->
+            {% if page.toc and page.extra.toc | default(value=config.extra.toc) %}
+            <section class="sidebar-toc">
+                <h3>{{ page.title }}</h3>
+                <nav class="toc-nav">
+                    <ul>
+                        {% for h1 in page.toc %}
+                        <li>
+                            <a href="{{ h1.permalink | safe }}">{{ h1.title }}</a>
+                            {% if h1.children %}
+                            <ul>
+                                {% for h2 in h1.children %}
+                                <li><a href="{{ h2.permalink | safe }}">{{ h2.title }}</a></li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </nav>
+            </section>
+            {% endif %}
+
+            <!-- Post meta -->
+            <section class="sidebar-meta">
+                <div class="meta-item">
+                    <span class="meta-label">Published</span>
+                    <time datetime="{{ page.date }}">{{ page.date | date(format="%b %d, %Y") }}</time>
+                </div>
+                {% if page.extra.updated %}
+                <div class="meta-item">
+                    <span class="meta-label">Updated</span>
+                    <time datetime="{{ page.extra.updated }}">{{ page.extra.updated | date(format="%b %d, %Y") }}</time>
+                </div>
+                {% endif %}
+                {% if page.reading_time %}
+                <div class="meta-item">
+                    <span class="meta-label">Reading time</span>
+                    <span>{{ page.reading_time }} min</span>
+                </div>
+                {% endif %}
+            </section>
+
+            <!-- Actions -->
+            <section class="sidebar-actions">
+                <a href="/pdf/{{ page.slug }}.pdf" class="action-button action-pdf">
+                    <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <line x1="12" y1="18" x2="12" y2="12"></line>
+                        <polyline points="9 15 12 18 15 15"></polyline>
+                    </svg>
+                    PDF
+                </a>
+                <button class="action-button action-cite" onclick="toggleCiteModal()" title="Cite this article">
+                    <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
+                        <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
+                        <path d="M4 22h16"></path>
+                        <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"></path>
+                        <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"></path>
+                        <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"></path>
+                    </svg>
+                    Cite
+                </button>
+                <button class="action-button action-share" onclick="copyLink()" title="Copy link">
+                    <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                    </svg>
+                    <span class="share-text">Share</span>
+                </button>
+            </section>
+
+            <!-- Citation Modal -->
+            <div id="cite-modal" class="cite-modal" style="display: none;">
+                <div class="cite-tabs">
+                    <button class="cite-tab active" onclick="showCiteFormat('bibtex')">BibTeX</button>
+                    <button class="cite-tab" onclick="showCiteFormat('apa')">APA</button>
+                </div>
+                <div id="cite-bibtex" class="cite-content">
+                    <pre><code id="bibtex-code">@article{lindfors{{ page.date | date(format="%Y") }}_{{ page.slug | replace(from="-", to="_") }},
+  author = { {{- config.extra.author -}} },
+  title = { {{- page.title -}} },
+  year = { {{- page.date | date(format="%Y") -}} },
+  url = { {{- config.base_url -}}/pdf/{{ page.slug }}.pdf},
+  note = {Accessed: <span class="cite-date"></span>}
+}</code></pre>
+                    <button class="cite-copy" onclick="copyCitation('bibtex')">Copy BibTeX</button>
+                </div>
+                <div id="cite-apa" class="cite-content" style="display: none;">
+                    <pre><code id="apa-code">{{ config.extra.author }} ({{ page.date | date(format="%Y") }}). {{ page.title }}. Retrieved <span class="cite-date"></span> from {{ config.base_url }}/pdf/{{ page.slug }}.pdf</code></pre>
+                    <button class="cite-copy" onclick="copyCitation('apa')">Copy APA</button>
+                </div>
+            </div>
+
+            <!-- Topics/Tags -->
+            {% if page.taxonomies.tags %}
+            <section class="sidebar-tags">
+                <h3>Topics</h3>
+                <div class="tag-list">
+                    {% for tag in page.taxonomies.tags %}
+                    <a href="{{ get_taxonomy_url(kind='tags', name=tag) }}" class="tag">{{ tag }}</a>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+
+            <!-- Author (at bottom - static info) -->
+            <section class="sidebar-author">
+                <div class="author-header">
+                    <img src="/emil.jpg" alt="{{ config.extra.author }}" class="author-image">
+                    <div class="author-name">{{ config.extra.author }}</div>
+                </div>
+                {% if config.extra.author_bio %}
+                <p class="author-bio">{{ config.extra.author_bio }}</p>
+                {% endif %}
+                <div class="author-links">
+                    <a href="/cv.pdf" class="author-link">CV</a>
+                    {% if config.extra.github %}
+                    <a href="{{ config.extra.github }}" rel="noopener noreferrer" target="_blank" class="author-link">GitHub</a>
+                    {% endif %}
+                    {% if config.extra.linkedin %}
+                    <a href="{{ config.extra.linkedin }}" rel="noopener noreferrer" target="_blank" class="author-link">LinkedIn</a>
+                    {% endif %}
+                </div>
+            </section>
+        </div>
+    </aside>
+</article>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Auto-populate today's date in citations
+    const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    document.querySelectorAll('.cite-date').forEach(el => {
+        el.textContent = today;
+    });
+
+    // Scroll spy for TOC
+    const tocLinks = document.querySelectorAll('.toc-nav a');
+    if (tocLinks.length === 0) return;
+
+    const headings = [];
+    tocLinks.forEach(link => {
+        const href = link.getAttribute('href');
+        const hashIndex = href.indexOf('#');
+        if (hashIndex === -1) return;
+        const id = href.slice(hashIndex + 1);
+        const heading = document.getElementById(id);
+        if (heading) headings.push({ id, heading, link });
+    });
+
+    function updateActiveLink() {
+        const scrollPos = window.scrollY + 100;
+        let current = headings[0];
+
+        for (const item of headings) {
+            if (item.heading.offsetTop <= scrollPos) {
+                current = item;
+            }
+        }
+
+        tocLinks.forEach(link => link.classList.remove('active'));
+        if (current) current.link.classList.add('active');
+    }
+
+    window.addEventListener('scroll', updateActiveLink, { passive: true });
+    updateActiveLink();
+});
+
+function toggleCiteModal() {
+    const modal = document.getElementById('cite-modal');
+    modal.style.display = modal.style.display === 'none' ? 'block' : 'none';
+}
+
+function showCiteFormat(format) {
+    document.querySelectorAll('.cite-content').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('.cite-tab').forEach(el => el.classList.remove('active'));
+    document.getElementById('cite-' + format).style.display = 'block';
+    event.target.classList.add('active');
+}
+
+function copyCitation(format) {
+    const content = document.querySelector('#cite-' + format + ' pre code').textContent;
+    navigator.clipboard.writeText(content).then(() => {
+        const btn = document.querySelector('#cite-' + format + ' .cite-copy');
+        const original = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = original, 2000);
+    });
+}
+
+function copyLink() {
+    navigator.clipboard.writeText(window.location.href).then(() => {
+        const text = document.querySelector('.share-text');
+        const original = text.textContent;
+        text.textContent = 'Copied!';
+        setTimeout(() => text.textContent = original, 2000);
+    });
+}
+</script>
+{% endblock %}

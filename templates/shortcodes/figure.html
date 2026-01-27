@@ -1,0 +1,11 @@
+{#
+    Figure with caption shortcode
+    Usage: {{ figure(src="image.png", alt="Description", caption="Figure 1: Description") }}
+    Optional: width parameter
+#}
+<figure class="figure">
+    <img src="{{ src }}" alt="{{ alt | default(value='') }}"{% if width %} width="{{ width }}"{% endif %}>
+    {% if caption %}
+    <figcaption>{{ caption }}</figcaption>
+    {% endif %}
+</figure>

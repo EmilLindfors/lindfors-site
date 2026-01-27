@@ -1,0 +1,6 @@
+{#
+    In-text citation shortcode
+    Usage: {{ reference(key="smith2024") }}
+    Or with custom number: {{ reference(key="smith2024", num=1) }}
+#}
+<a href="#ref-{{ key }}" class="citation">[{{ num | default(value=key) }}]</a>

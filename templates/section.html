@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}{{ section.title }} | {{ config.title }}{% endblock %}
+
+{% block description %}{{ section.description | default(value=config.description) }}{% endblock %}
+
+{% block content %}
+<section class="section-header">
+    <h1>{{ section.title }}</h1>
+    {% if section.description %}
+    <p class="section-description">{{ section.description }}</p>
+    {% endif %}
+</section>
+
+{% if section.pages %}
+<ul class="post-list">
+    {% for page in section.pages %}
+    <li class="post-item">
+        <a href="{{ page.permalink }}">
+            <span class="post-title">{{ page.title }}</span>
+            <time datetime="{{ page.date }}">{{ page.date | date(format="%B %d, %Y") }}</time>
+        </a>
+        {% if page.description %}
+        <p class="post-excerpt">{{ page.description }}</p>
+        {% endif %}
+        {% if page.taxonomies.tags %}
+        <div class="post-tags">
+            {% for tag in page.taxonomies.tags %}
+            <span class="tag">{{ tag }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
+
+{% if paginator %}
+<nav class="pagination">
+    {% if paginator.previous %}
+    <a href="{{ paginator.previous }}" class="pagination-link">&larr; Newer</a>
+    {% endif %}
+    <span class="pagination-info">Page {{ paginator.current_index }} of {{ paginator.number_pagers }}</span>
+    {% if paginator.next %}
+    <a href="{{ paginator.next }}" class="pagination-link">Older &rarr;</a>
+    {% endif %}
+</nav>
+{% endif %}
+
+{% else %}
+<p>No posts in this section yet.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,62 @@
+{# BibTeX Reference Formatting Macros #}
+
+{% macro format_reference(ref) %}
+{% if ref.type == "article" %}
+{{ self::format_article(ref=ref) }}
+{% elif ref.type == "book" %}
+{{ self::format_book(ref=ref) }}
+{% elif ref.type == "inproceedings" %}
+{{ self::format_inproceedings(ref=ref) }}
+{% elif ref.type == "phdthesis" %}
+{{ self::format_phdthesis(ref=ref) }}
+{% elif ref.type == "misc" %}
+{{ self::format_misc(ref=ref) }}
+{% else %}
+{{ self::format_generic(ref=ref) }}
+{% endif %}
+{% endmacro %}
+
+{% macro format_article(ref) %}
+<span class="ref-authors">{{ ref.author }}</span>.
+<span class="ref-title">"{{ ref.title }}"</span>.
+{% if ref.journal %}<em class="ref-journal">{{ ref.journal }}</em>{% endif %}{% if ref.volume %}, vol. {{ ref.volume }}{% endif %}{% if ref.number %}, no. {{ ref.number }}{% endif %}{% if ref.pages %}, pp. {{ ref.pages }}{% endif %}{% if ref.year %}, {{ ref.year }}{% endif %}.
+{% if ref.doi %}<a href="https://doi.org/{{ ref.doi }}" class="ref-doi">doi:{{ ref.doi }}</a>{% endif %}
+{% if ref.url %}<a href="{{ ref.url }}" class="ref-url">[link]</a>{% endif %}
+{% endmacro %}
+
+{% macro format_book(ref) %}
+<span class="ref-authors">{{ ref.author }}</span>.
+<em class="ref-title">{{ ref.title }}</em>.
+{% if ref.publisher %}{{ ref.publisher }}{% endif %}{% if ref.year %}, {{ ref.year }}{% endif %}.
+{% if ref.isbn %}ISBN: {{ ref.isbn }}{% endif %}
+{% if ref.url %}<a href="{{ ref.url }}" class="ref-url">[link]</a>{% endif %}
+{% endmacro %}
+
+{% macro format_inproceedings(ref) %}
+<span class="ref-authors">{{ ref.author }}</span>.
+<span class="ref-title">"{{ ref.title }}"</span>.
+{% if ref.booktitle %}In <em>{{ ref.booktitle }}</em>{% endif %}{% if ref.pages %}, pp. {{ ref.pages }}{% endif %}{% if ref.year %}, {{ ref.year }}{% endif %}.
+{% if ref.doi %}<a href="https://doi.org/{{ ref.doi }}" class="ref-doi">doi:{{ ref.doi }}</a>{% endif %}
+{% if ref.url %}<a href="{{ ref.url }}" class="ref-url">[link]</a>{% endif %}
+{% endmacro %}
+
+{% macro format_phdthesis(ref) %}
+<span class="ref-authors">{{ ref.author }}</span>.
+<em class="ref-title">{{ ref.title }}</em>.
+PhD thesis, {% if ref.school %}{{ ref.school }}{% endif %}{% if ref.year %}, {{ ref.year }}{% endif %}.
+{% if ref.url %}<a href="{{ ref.url }}" class="ref-url">[link]</a>{% endif %}
+{% endmacro %}
+
+{% macro format_misc(ref) %}
+<span class="ref-authors">{{ ref.author }}</span>.
+<span class="ref-title">"{{ ref.title }}"</span>.
+{% if ref.howpublished %}{{ ref.howpublished }}{% endif %}{% if ref.year %}, {{ ref.year }}{% endif %}.
+{% if ref.url %}<a href="{{ ref.url }}" class="ref-url">[link]</a>{% endif %}
+{% endmacro %}
+
+{% macro format_generic(ref) %}
+{% if ref.author %}<span class="ref-authors">{{ ref.author }}</span>. {% endif %}
+{% if ref.title %}<span class="ref-title">"{{ ref.title }}"</span>. {% endif %}
+{% if ref.year %}{{ ref.year }}.{% endif %}
+{% if ref.url %}<a href="{{ ref.url }}" class="ref-url">[link]</a>{% endif %}
+{% endmacro %}

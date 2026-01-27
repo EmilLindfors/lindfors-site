@@ -1,0 +1,10 @@
+{#
+    KaTeX math rendering shortcode
+    Usage for display math: {% katex(block=true) %}\int_0^\infty e^{-x} dx{% end %}
+    Usage for inline math: {% katex() %}E = mc^2{% end %}
+#}
+{% if block %}
+<div class="katex-display">$${{ body }}$$</div>
+{% else %}
+<span class="katex-inline">${{ body }}$</span>
+{% endif %}

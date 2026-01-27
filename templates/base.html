@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="{% block description %}{{ config.description }}{% endblock %}">
+    <meta name="author" content="{{ config.extra.author }}">
+
+    <title>{% block title %}{{ config.title }}{% endblock %}</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;1,7..72,400;1,7..72,500&display=swap" rel="stylesheet">
+
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="{{ get_url(path='style.css') }}">
+
+    <!-- KaTeX CSS -->
+    {% if config.extra.katex %}
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
+    {% endif %}
+
+    <!-- Feeds -->
+    {% if config.generate_feeds %}
+    <link rel="alternate" type="application/atom+xml" title="Atom Feed" href="{{ get_url(path='atom.xml') }}">
+    {% endif %}
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>E</text></svg>">
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <header class="site-header">
+        <nav class="nav-container">
+            <a href="{{ config.base_url }}" class="site-title">{{ config.title }}</a>
+            <div class="nav-links">
+                <a href="{{ get_url(path='blog') }}">Blog</a>
+                <a href="{{ get_url(path='about') }}">About</a>
+                <a href="{{ get_url(path='atom.xml') }}" class="feed-link" aria-label="RSS Feed">
+                    <svg class="feed-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <circle cx="6.5" cy="17.5" r="2.5"/>
+                        <path d="M4 4v3c7.18 0 13 5.82 13 13h3C20 10.03 13.97 4 4 4z"/>
+                        <path d="M4 10v3c3.87 0 7 3.13 7 7h3c0-5.52-4.48-10-10-10z"/>
+                    </svg>
+                </a>
+                <button id="theme-toggle" class="theme-toggle" aria-label="Toggle dark mode">
+                    <span class="sun-icon">&#9728;</span>
+                    <span class="moon-icon">&#9790;</span>
+                </button>
+            </div>
+        </nav>
+    </header>
+
+    <main id="main-content" class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="site-footer">
+        <div class="footer-content">
+            <p>&copy; {{ now() | date(format="%Y") }} {{ config.extra.author }}</p>
+            <div class="footer-links">
+                <a href="{{ get_url(path='atom.xml') }}">RSS</a>
+                {% if config.extra.github %}
+                <a href="{{ config.extra.github }}" rel="noopener noreferrer" target="_blank">GitHub</a>
+                {% endif %}
+            </div>
+        </div>
+    </footer>
+
+    <!-- Theme toggle script -->
+    <script>
+        (function() {
+            const toggle = document.getElementById('theme-toggle');
+            const html = document.documentElement;
+
+            // Check for saved preference or system preference
+            const savedTheme = localStorage.getItem('theme');
+            const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+            if (savedTheme) {
+                html.setAttribute('data-theme', savedTheme);
+            } else if (systemPrefersDark) {
+                html.setAttribute('data-theme', 'dark');
+            }
+
+            toggle.addEventListener('click', function() {
+                const currentTheme = html.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                html.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+            });
+        })();
+    </script>
+
+    <!-- KaTeX auto-render -->
+    {% if config.extra.katex %}
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Ber8kMwEvqB1MZshsN9GVqlRKLmMZ3p8GQXO7b1v" crossorigin="anonymous"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"
+        onload="renderMathInElement(document.body, {
+            delimiters: [
+                {left: '$$', right: '$$', display: true},
+                {left: '$', right: '$', display: false}
+            ],
+            throwOnError: false
+        });"></script>
+    {% endif %}
+</body>
+</html>
