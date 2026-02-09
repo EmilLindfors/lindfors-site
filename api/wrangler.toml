@@ -1,0 +1,20 @@
+name = "newsletter-api"
+main = "build/worker/shim.mjs"
+compatibility_date = "2024-12-01"
+
+[build]
+command = "cargo install worker-build 2>/dev/null; worker-build --release"
+
+[vars]
+SITE_URL = "https://lindfors.no"
+STALWART_API_URL = "https://mail.lindfors.no"  # Adjust to your Stalwart instance
+STALWART_LIST_ID = "newsletter"                 # The mailing list principal name
+
+# Set these as secrets (npx wrangler secret put <NAME>):
+# STALWART_API_KEY=
+# ADMIN_KEY=
+
+# Route /api/* to this worker on the main domain
+routes = [
+    { pattern = "lindfors.no/api/*", zone_name = "lindfors.no" }
+]
