@@ -1,6 +1,0 @@
-name = "lindfors-site"
-compatibility_date = "2024-12-01"
-pages_build_output_dir = "public"
-
-# API routes are handled by the Rust Worker in api/
-# See api/wrangler.toml for that configuration
