@@ -41,3 +41,9 @@ katex = true
 
 # Enable table of contents by default
 toc = true
+
+# Newsletter (Pages Function backed by D1)
+newsletter_endpoint = "/api/subscribe"
+
+# Default OG image (place a 1200x630 image at static/og-default.png)
+og_image = "/og-default.png"

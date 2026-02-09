@@ -6,7 +6,42 @@
 
 {% block description %}{{ page.description | default(value=config.description) }}{% endblock %}
 
+{% block canonical %}{{ page.permalink | safe }}{% endblock %}
+
+{% block opengraph %}
+<meta property="og:title" content="{{ page.title }}">
+<meta property="og:description" content="{{ page.description | default(value=config.description) }}">
+<meta property="og:type" content="article">
+<meta property="og:url" content="{{ page.permalink | safe }}">
+<meta property="og:article:published_time" content="{{ page.date }}">
+<meta property="og:article:author" content="{{ config.extra.author }}">
+{% if page.extra.og_image %}
+<meta property="og:image" content="{{ config.base_url | safe }}{{ page.extra.og_image }}">
+{% elif config.extra.og_image %}
+<meta property="og:image" content="{{ config.base_url | safe }}{{ config.extra.og_image }}">
+{% endif %}
+{% if page.taxonomies.tags %}
+{% for tag in page.taxonomies.tags %}
+<meta property="og:article:tag" content="{{ tag }}">
+{% endfor %}
+{% endif %}
+{% endblock opengraph %}
+
+{% block twittercard %}
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="{{ page.title }}">
+<meta name="twitter:description" content="{{ page.description | default(value=config.description) }}">
+{% if page.extra.og_image %}
+<meta name="twitter:image" content="{{ config.base_url | safe }}{{ page.extra.og_image }}">
+{% elif config.extra.og_image %}
+<meta name="twitter:image" content="{{ config.base_url | safe }}{{ config.extra.og_image }}">
+{% endif %}
+{% endblock twittercard %}
+
 {% block content %}
+<!-- Reading progress bar -->
+<div class="reading-progress" id="reading-progress"></div>
+
 <article class="post-layout">
     <!-- Main content column -->
     <div class="post-main">
@@ -32,6 +67,52 @@
                 {% endfor %}
             </ol>
         </section>
+        {% endif %}
+
+        <!-- Newsletter CTA -->
+        {% if config.extra.newsletter_endpoint %}
+        <section class="post-newsletter">
+            <h3>Enjoyed this post?</h3>
+            <p>Subscribe to get notified when I publish new articles on aquaculture, Rust, and technology.</p>
+            <form class="newsletter-form newsletter-form--post" action="{{ config.extra.newsletter_endpoint }}" method="POST">
+                <input type="email" name="email" placeholder="your@email.com" required aria-label="Email for newsletter">
+                <button type="submit">Subscribe</button>
+            </form>
+        </section>
+        {% endif %}
+
+        <!-- Related posts (by shared tags) -->
+        {% if page.taxonomies.tags is defined and page.taxonomies.tags | length > 0 %}
+        {% set blog = get_section(path="blog/_index.md") %}
+        {% set_global related = [] %}
+        {% for post in blog.pages %}
+            {% if post.permalink != page.permalink %}
+                {% if post.taxonomies.tags is defined %}
+                    {% set_global has_shared = false %}
+                    {% for tag in post.taxonomies.tags %}
+                        {% if page.taxonomies.tags is containing(tag) %}
+                            {% set_global has_shared = true %}
+                        {% endif %}
+                    {% endfor %}
+                    {% if has_shared %}
+                        {% set_global related = related | concat(with=post) %}
+                    {% endif %}
+                {% endif %}
+            {% endif %}
+        {% endfor %}
+        {% if related | length > 0 %}
+        <section class="related-posts">
+            <h3>Related posts</h3>
+            <div class="related-grid">
+                {% for post in related | slice(end=3) %}
+                <a href="{{ post.permalink }}" class="related-card">
+                    <span class="related-title">{{ post.title }}</span>
+                    <time datetime="{{ post.date }}">{{ post.date | date(format="%b %Y") }}</time>
+                </a>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
         {% endif %}
 
         <footer class="post-footer">
@@ -182,6 +263,35 @@
     </aside>
 </article>
 
+<!-- JSON-LD Structured Data -->
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "{{ page.title }}",
+    "description": "{{ page.description | default(value='') }}",
+    "datePublished": "{{ page.date }}",
+    {% if page.extra.updated %}
+    "dateModified": "{{ page.extra.updated }}",
+    {% else %}
+    "dateModified": "{{ page.date }}",
+    {% endif %}
+    "author": {
+        "@type": "Person",
+        "name": "{{ config.extra.author }}",
+        "url": "{{ config.base_url | safe }}/about/"
+    },
+    "publisher": {
+        "@type": "Person",
+        "name": "{{ config.extra.author }}"
+    },
+    "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "{{ page.permalink | safe }}"
+    }
+}
+</script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Auto-populate today's date in citations
@@ -218,8 +328,21 @@ document.addEventListener('DOMContentLoaded', function() {
         if (current) current.link.classList.add('active');
     }
 
-    window.addEventListener('scroll', updateActiveLink, { passive: true });
+    // Reading progress bar
+    const progressBar = document.getElementById('reading-progress');
+    function updateProgress() {
+        const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+        if (docHeight > 0) {
+            progressBar.style.width = (window.scrollY / docHeight * 100) + '%';
+        }
+    }
+
+    window.addEventListener('scroll', function() {
+        updateActiveLink();
+        updateProgress();
+    }, { passive: true });
     updateActiveLink();
+    updateProgress();
 });
 
 function toggleCiteModal() {

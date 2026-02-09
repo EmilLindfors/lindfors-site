@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+
+{% block title %}Search | {{ config.title }}{% endblock %}
+
+{% block content %}
+<section class="search-page">
+    <div class="search-header">
+        <h1>Search</h1>
+        <div class="search-input-wrapper">
+            <svg class="search-input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="search-input" class="search-input" placeholder="Search posts..." autofocus aria-label="Search posts">
+        </div>
+    </div>
+    <div id="search-results" class="search-results"></div>
+</section>
+
+<script src="{{ get_url(path='elasticlunr.min.js') }}"></script>
+<script src="{{ get_url(path='search_index.en.js') }}"></script>
+<script>
+(function() {
+    var input = document.getElementById('search-input');
+    var results = document.getElementById('search-results');
+    var index;
+
+    // Load the index
+    if (window.searchIndex) {
+        index = elasticlunr.Index.load(window.searchIndex);
+    }
+
+    function search(query) {
+        if (!index || !query || query.length < 2) {
+            results.innerHTML = '';
+            return;
+        }
+
+        var hits = index.search(query, {
+            fields: { title: { boost: 2 }, body: { boost: 1 } },
+            bool: 'OR',
+            expand: true
+        });
+
+        if (hits.length === 0) {
+            results.innerHTML = '<p class="search-empty">No results found.</p>';
+            return;
+        }
+
+        var html = '<ul class="post-list">';
+        hits.forEach(function(hit) {
+            var doc = hit.doc || index.documentStore.getDoc(hit.ref);
+            if (!doc) return;
+
+            // Build a snippet from the body
+            var body = doc.body || '';
+            var snippet = '';
+            var lowerBody = body.toLowerCase();
+            var lowerQuery = query.toLowerCase();
+            var pos = lowerBody.indexOf(lowerQuery);
+            if (pos > -1) {
+                var start = Math.max(0, pos - 80);
+                var end = Math.min(body.length, pos + query.length + 80);
+                snippet = (start > 0 ? '...' : '') + body.slice(start, end) + (end < body.length ? '...' : '');
+            } else {
+                snippet = body.slice(0, 160) + (body.length > 160 ? '...' : '');
+            }
+
+            // The ref is the full URL
+            var url = hit.ref;
+            var title = doc.title || url;
+
+            html += '<li class="post-item">';
+            html += '<a href="' + url + '">';
+            html += '<span class="post-title">' + escapeHtml(title) + '</span>';
+            html += '</a>';
+            html += '<p class="post-excerpt">' + escapeHtml(snippet) + '</p>';
+            html += '</li>';
+        });
+        html += '</ul>';
+        results.innerHTML = html;
+    }
+
+    function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    // Debounce input
+    var timer;
+    input.addEventListener('input', function() {
+        clearTimeout(timer);
+        timer = setTimeout(function() { search(input.value.trim()); }, 200);
+    });
+
+    // Support ?q= query parameter
+    var params = new URLSearchParams(window.location.search);
+    var q = params.get('q');
+    if (q) {
+        input.value = q;
+        search(q);
+    }
+})();
+</script>
+{% endblock %}

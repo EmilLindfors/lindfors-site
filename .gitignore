@@ -1,8 +1,9 @@
 # Build output
 public/
 
-# Downloaded fonts (can be re-downloaded)
+# Downloaded font source files (can be re-downloaded)
 fonts/
+!static/fonts/
 
 # Rust build artifacts
 target/

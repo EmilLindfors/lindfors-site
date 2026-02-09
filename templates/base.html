@@ -8,10 +8,83 @@
 
     <title>{% block title %}{{ config.title }}{% endblock %}</title>
 
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;1,7..72,400;1,7..72,500&display=swap" rel="stylesheet">
+    <!-- Canonical URL -->
+    <link rel="canonical" href="{% block canonical %}{{ config.base_url | safe }}{% endblock %}">
+
+    <!-- Open Graph -->
+    <meta property="og:site_name" content="{{ config.title }}">
+    {% block opengraph %}
+    <meta property="og:title" content="{{ config.title }}">
+    <meta property="og:description" content="{{ config.description }}">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ config.base_url | safe }}">
+    {% if config.extra.og_image %}
+    <meta property="og:image" content="{{ config.base_url | safe }}{{ config.extra.og_image }}">
+    {% endif %}
+    {% endblock opengraph %}
+
+    <!-- Twitter Card -->
+    {% block twittercard %}
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{ config.title }}">
+    <meta name="twitter:description" content="{{ config.description }}">
+    {% if config.extra.og_image %}
+    <meta name="twitter:image" content="{{ config.base_url | safe }}{{ config.extra.og_image }}">
+    {% endif %}
+    {% endblock twittercard %}
+
+    <!-- Self-hosted fonts -->
+    <style>
+        @font-face {
+            font-family: 'Inter';
+            font-style: normal;
+            font-weight: 100 900;
+            font-display: swap;
+            src: url('/fonts/InterVariable.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'Inter';
+            font-style: italic;
+            font-weight: 100 900;
+            font-display: swap;
+            src: url('/fonts/InterVariable-Italic.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'Literata';
+            font-style: normal;
+            font-weight: 400;
+            font-display: swap;
+            src: url('/fonts/Literata-Regular.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'Literata';
+            font-style: italic;
+            font-weight: 400;
+            font-display: swap;
+            src: url('/fonts/Literata-Italic.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'Literata';
+            font-style: normal;
+            font-weight: 500;
+            font-display: swap;
+            src: url('/fonts/Literata-Medium.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'Literata';
+            font-style: normal;
+            font-weight: 600;
+            font-display: swap;
+            src: url('/fonts/Literata-SemiBold.woff2') format('woff2');
+        }
+        @font-face {
+            font-family: 'Literata';
+            font-style: normal;
+            font-weight: 700;
+            font-display: swap;
+            src: url('/fonts/Literata-Bold.woff2') format('woff2');
+        }
+    </style>
 
     <!-- Stylesheet -->
     <link rel="stylesheet" href="{{ get_url(path='style.css') }}">
@@ -38,6 +111,12 @@
             <div class="nav-links">
                 <a href="{{ get_url(path='blog') }}">Blog</a>
                 <a href="{{ get_url(path='about') }}">About</a>
+                <a href="{{ get_url(path='search') }}" class="search-link" aria-label="Search">
+                    <svg class="feed-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </a>
                 <a href="{{ get_url(path='atom.xml') }}" class="feed-link" aria-label="RSS Feed">
                     <svg class="feed-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
                         <circle cx="6.5" cy="17.5" r="2.5"/>
@@ -59,13 +138,23 @@
 
     <footer class="site-footer">
         <div class="footer-content">
-            <p>&copy; {{ now() | date(format="%Y") }} {{ config.extra.author }}</p>
-            <div class="footer-links">
-                <a href="{{ get_url(path='atom.xml') }}">RSS</a>
-                {% if config.extra.github %}
-                <a href="{{ config.extra.github }}" rel="noopener noreferrer" target="_blank">GitHub</a>
-                {% endif %}
+            <div class="footer-left">
+                <p>&copy; {{ now() | date(format="%Y") }} {{ config.extra.author }}</p>
+                <div class="footer-links">
+                    <a href="{{ get_url(path='atom.xml') }}">RSS</a>
+                    {% if config.extra.github %}
+                    <a href="{{ config.extra.github }}" rel="noopener noreferrer" target="_blank">GitHub</a>
+                    {% endif %}
+                </div>
             </div>
+            {% if config.extra.newsletter_endpoint %}
+            <div class="footer-newsletter">
+                <form class="newsletter-form newsletter-form--inline" action="{{ config.extra.newsletter_endpoint }}" method="POST">
+                    <input type="email" name="email" placeholder="your@email.com" required aria-label="Email for newsletter">
+                    <button type="submit">Subscribe</button>
+                </form>
+            </div>
+            {% endif %}
         </div>
     </footer>
 
@@ -93,6 +182,40 @@
             });
         })();
     </script>
+
+    <!-- Newsletter form handler -->
+    {% if config.extra.newsletter_endpoint %}
+    <script>
+        document.querySelectorAll('.newsletter-form').forEach(function(form) {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                var email = form.querySelector('input[name="email"]').value;
+                var btn = form.querySelector('button[type="submit"]');
+                var originalText = btn.textContent;
+                btn.textContent = 'Sending...';
+                btn.disabled = true;
+
+                fetch(form.action, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email })
+                }).then(function(res) {
+                    if (res.ok) {
+                        btn.textContent = 'Subscribed!';
+                        form.querySelector('input[name="email"]').value = '';
+                        setTimeout(function() { btn.textContent = originalText; btn.disabled = false; }, 3000);
+                    } else {
+                        throw new Error('Failed');
+                    }
+                }).catch(function() {
+                    btn.textContent = 'Error - try again';
+                    btn.disabled = false;
+                    setTimeout(function() { btn.textContent = originalText; }, 3000);
+                });
+            });
+        });
+    </script>
+    {% endif %}
 
     <!-- KaTeX auto-render -->
     {% if config.extra.katex %}
