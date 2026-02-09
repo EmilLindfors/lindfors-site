@@ -25,7 +25,7 @@
 
     <!-- Twitter Card -->
     {% block twittercard %}
-    <meta name="twitter:card" content="summary">
+    <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="{{ config.title }}">
     <meta name="twitter:description" content="{{ config.description }}">
     {% if config.extra.og_image %}
@@ -91,6 +91,7 @@
 
     <!-- KaTeX CSS -->
     {% if config.extra.katex %}
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.28/dist/katex.min.css" integrity="sha384-Wsr4Nh3yrvMf2KCebJchRJoVo1gTU6kcP05uRSh5NV3sj9+a8IomuJoQzf3sMq4T" crossorigin="anonymous">
     {% endif %}
 
@@ -101,6 +102,26 @@
 
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>E</text></svg>">
+
+    <!-- JSON-LD: WebSite + Person -->
+    {% block jsonld %}
+    <script type="application/ld+json">
+    [{
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "{{ config.title }}",
+        "url": "{{ config.base_url | safe }}",
+        "description": "{{ config.description }}"
+    },
+    {
+        "@context": "https://schema.org",
+        "@type": "Person",
+        "name": "{{ config.extra.author }}",
+        "url": "{{ config.base_url | safe }}/about/"{% if config.extra.github %},
+        "sameAs": ["{{ config.extra.github }}"{% if config.extra.linkedin %}, "{{ config.extra.linkedin }}"{% endif %}]{% endif %}
+    }]
+    </script>
+    {% endblock jsonld %}
 </head>
 <body>
     <a href="#main-content" class="skip-link">Skip to main content</a>

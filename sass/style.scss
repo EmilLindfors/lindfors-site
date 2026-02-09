@@ -1558,3 +1558,32 @@ pre {
         grid-template-columns: 1fr;
     }
 }
+
+// 404 page
+.error-page {
+    text-align: center;
+    padding: 120px 24px;
+
+    h1 {
+        font-size: 4rem;
+        color: var(--accent);
+        margin: 0 0 16px;
+    }
+
+    p {
+        color: var(--text-muted);
+        font-size: 1.1rem;
+        margin-bottom: 32px;
+    }
+
+    .error-links {
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+
+        a {
+            color: var(--link);
+            font-weight: 500;
+        }
+    }
+}
