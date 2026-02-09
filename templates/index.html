@@ -3,6 +3,19 @@
 {% block content %}
 {% set blog = get_section(path="blog/_index.md") %}
 
+<!-- Hero -->
+<section class="hero">
+    <h1>Hi, I'm Emil Lindfors</h1>
+    <p class="hero-subtitle">I write about aquaculture, Rust programming, sensors, and the intersection of technology and nature. PhD researcher and senior software engineer based in Norway.</p>
+    {% if config.extra.newsletter_endpoint %}
+    <form class="newsletter-form newsletter-form--hero" action="{{ config.extra.newsletter_endpoint }}" method="POST">
+        <input type="email" name="email" placeholder="your@email.com" required aria-label="Email for newsletter">
+        <button type="submit">Subscribe to newsletter</button>
+    </form>
+    <p class="hero-rss">Or follow via <a href="{{ get_url(path='atom.xml') }}">RSS</a></p>
+    {% endif %}
+</section>
+
 <!-- Featured Posts -->
 {% set featured = blog.pages | filter(attribute="extra.featured", value=true) %}
 {% if featured %}
