@@ -8,11 +8,17 @@ command = "cargo install worker-build 2>/dev/null; worker-build --release"
 [vars]
 SITE_URL = "https://lindfors.no"
 STALWART_API_URL = "https://mail.lindfors.no"  # Adjust to your Stalwart instance
-STALWART_LIST_ID = "newsletter"                 # The mailing list principal name
+STALWART_LIST_ID = "news"                 # The mailing list principal name
+
+# JMAP config for sending newsletters
+JMAP_API_URL = "https://mail.lindfors.no:10443"
+JMAP_ACCOUNT_ID = "c2"
+JMAP_IDENTITY_ID = "b"
 
 # Set these as secrets (npx wrangler secret put <NAME>):
 # STALWART_API_KEY=
 # ADMIN_KEY=
+# JMAP_CREDENTIALS=  (base64 of postmaster@lindfors.no:PASSWORD)
 
 # Route /api/* to this worker on the main domain
 routes = [

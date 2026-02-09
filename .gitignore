@@ -27,6 +27,10 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Secrets
+.env
+.dev.vars
+
 # Temporary files
 *.tmp
 *.bak
