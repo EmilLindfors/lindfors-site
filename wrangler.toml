@@ -2,8 +2,5 @@ name = "lindfors-site"
 compatibility_date = "2024-12-01"
 pages_build_output_dir = "public"
 
-[build]
-command = "curl -sL https://github.com/getzola/zola/releases/download/v0.22.1/zola-v0.22.1-x86_64-unknown-linux-gnu.tar.gz | tar xz && ./zola build"
-
 # API routes are handled by the Rust Worker in api/
 # See api/wrangler.toml for that configuration
