@@ -6,6 +6,7 @@
   author: "Emil Lindfors",
   date: none,
   abstract: none,
+  featured-image: none,
   body
 ) = {
   // Sea theme colors
@@ -128,6 +129,20 @@
     )
   }
 
+  // Image styling - constrain width and center
+  show figure: it => {
+    v(0.5em)
+    align(center, block(width: 85%, it.body))
+    if it.caption != none {
+      align(center,
+        text(size: 9pt, fill: color-text-secondary, style: "italic")[
+          #it.caption.body
+        ]
+      )
+    }
+    v(0.5em)
+  }
+
   // Title block - Inter font
   if title != none {
     align(center)[
@@ -156,6 +171,19 @@
   ]
 
   v(1.5em)
+
+  // Featured image below title
+  if featured-image != none {
+    align(center,
+      block(
+        width: 100%,
+        clip: true,
+        radius: 4pt,
+        image(featured-image, width: 100%)
+      )
+    )
+    v(1em)
+  }
 
   // Horizontal rule after header
   line(length: 100%, stroke: 0.5pt + color-border)

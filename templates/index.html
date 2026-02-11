@@ -1,18 +1,33 @@
-{% extends "base.html" %}
-
-{% block content %}
-{% set blog = get_section(path="blog/_index.md") %}
+{% extends "base.html" %} {% block content %} {% set blog =
+get_section(path="blog/_index.md") %}
 
 <!-- Hero -->
 <section class="hero">
     <h1>Hi, I'm Emil Lindfors</h1>
-    <p class="hero-subtitle">I write about aquaculture, Rust programming, sensors, and the intersection of technology and nature. PhD researcher and senior software engineer based in Norway.</p>
+    <p class="hero-subtitle">
+        I write about aquaculture, Rust programming, sensors, and the
+        intersection of technology and nature. PhD in technological innovation
+        and senior software engineer based in Norway.
+    </p>
     {% if config.extra.newsletter_endpoint %}
-    <form class="newsletter-form newsletter-form--hero" action="{{ config.extra.newsletter_endpoint }}" method="POST">
-        <input type="email" name="email" placeholder="your@email.com" required aria-label="Email for newsletter">
+    <form
+        class="newsletter-form newsletter-form--hero"
+        action="{{ config.extra.newsletter_endpoint }}"
+        method="POST"
+    >
+        <input
+            type="email"
+            name="email"
+            placeholder="your@email.com"
+            required
+            aria-label="Email for newsletter"
+        />
         <button type="submit">Subscribe to newsletter</button>
     </form>
-    <p class="hero-rss">Or follow via <a href="{{ get_url(path='atom.xml') }}">RSS</a></p>
+    <p class="hero-rss">
+        Or follow via <a href="{{ get_url(path='atom.xml') }}">RSS</a>. ..or
+        just remember to check back I guess? Or don't. no pressure!
+    </p>
     {% endif %}
 </section>
 
@@ -23,17 +38,36 @@
     <h2>Featured</h2>
     <div class="featured-grid">
         {% for page in featured | slice(end=2) %}
-        <article class="featured-card">
+        <article
+            class="featured-card{% if page.extra.featured_image %} has-image{% endif %}"
+        >
             <a href="{{ page.permalink }}">
-                <h3>{{ page.title }}</h3>
-                {% if page.description %}
-                <p>{{ page.description }}</p>
+                {% if page.extra.featured_image %} {% set thumb =
+                page.extra.featured_image | replace(from=".webp",
+                to="-thumb.webp") %}
+                <img
+                    class="featured-image"
+                    src="{{ page.path | safe }}{{ thumb }}"
+                    alt="{{ page.title }}"
+                    loading="lazy"
+                    width="600"
+                />
                 {% endif %}
-                <div class="featured-meta">
-                    <time datetime="{{ page.date }}">{{ page.date | date(format="%B %Y") }}</time>
-                    {% if page.reading_time %}
-                    <span class="reading-time">{{ page.reading_time }} min read</span>
+                <div class="featured-text">
+                    <h3>{{ page.title }}</h3>
+                    {% if page.description %}
+                    <p>{{ page.description }}</p>
                     {% endif %}
+                    <div class="featured-meta">
+                        <time datetime="{{ page.date }}"
+                            >{{ page.date | date(format="%B %Y") }}</time
+                        >
+                        {% if page.reading_time %}
+                        <span class="reading-time"
+                            >{{ page.reading_time }} min read</span
+                        >
+                        {% endif %}
+                    </div>
                 </div>
             </a>
         </article>
@@ -47,18 +81,21 @@
     <h2>Recent</h2>
     {% if blog.pages %}
     <ul class="post-list">
-        {% for page in blog.pages | slice(end=10) %}
-        {% if not page.extra.featured %}
+        {% for page in blog.pages | slice(end=10) %} {% if not
+        page.extra.featured %}
         <li class="post-item">
             <a href="{{ page.permalink }}">
                 <span class="post-title">{{ page.title }}</span>
-                <time datetime="{{ page.date }}">{{ page.date | date(format="%b %d, %Y") }}</time>
+                <time datetime="{{ page.date }}"
+                    >{{ page.date | date(format="%b %d, %Y") }}</time
+                >
             </a>
         </li>
-        {% endif %}
-        {% endfor %}
+        {% endif %} {% endfor %}
     </ul>
-    <a href="{{ get_url(path='blog') }}" class="view-all">View all posts &rarr;</a>
+    <a href="{{ get_url(path='blog') }}" class="view-all"
+        >View all posts &rarr;</a
+    >
     {% else %}
     <p>No posts yet.</p>
     {% endif %}

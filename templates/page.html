@@ -14,9 +14,17 @@
 <meta property="og:type" content="article">
 <meta property="og:url" content="{{ page.permalink | safe }}">
 <meta property="og:article:published_time" content="{{ page.date }}">
+{% if page.extra.changelog %}
+{% set latest_change = page.extra.changelog | first %}
+<meta property="og:article:modified_time" content="{{ latest_change.date }}">
+{% elif page.extra.updated %}
+<meta property="og:article:modified_time" content="{{ page.extra.updated }}">
+{% endif %}
 <meta property="og:article:author" content="{{ config.extra.author }}">
 {% if page.extra.og_image %}
 <meta property="og:image" content="{{ config.base_url | safe }}{{ page.extra.og_image }}">
+{% elif page.extra.featured_image %}
+<meta property="og:image" content="{{ page.permalink | safe }}{{ page.extra.featured_image }}">
 {% elif config.extra.og_image %}
 <meta property="og:image" content="{{ config.base_url | safe }}{{ config.extra.og_image }}">
 {% endif %}
@@ -33,6 +41,8 @@
 <meta name="twitter:description" content="{{ page.description | default(value=config.description) }}">
 {% if page.extra.og_image %}
 <meta name="twitter:image" content="{{ config.base_url | safe }}{{ page.extra.og_image }}">
+{% elif page.extra.featured_image %}
+<meta name="twitter:image" content="{{ page.permalink | safe }}{{ page.extra.featured_image }}">
 {% elif config.extra.og_image %}
 <meta name="twitter:image" content="{{ config.base_url | safe }}{{ config.extra.og_image }}">
 {% endif %}
@@ -49,6 +59,9 @@
             <h1>{{ page.title }}</h1>
             {% if page.description %}
             <p class="post-description">{{ page.description }}</p>
+            {% endif %}
+            {% if page.extra.featured_image %}
+            <img class="post-hero-image" src="{{ page.extra.featured_image }}" alt="{{ page.title }}" width="1200">
             {% endif %}
         </header>
 
@@ -161,7 +174,13 @@
                     <span class="meta-label">Published</span>
                     <time datetime="{{ page.date }}">{{ page.date | date(format="%b %d, %Y") }}</time>
                 </div>
-                {% if page.extra.updated %}
+                {% if page.extra.changelog %}
+                {% set latest_change = page.extra.changelog | first %}
+                <div class="meta-item">
+                    <span class="meta-label">Updated</span>
+                    <time datetime="{{ latest_change.date }}">{{ latest_change.date | date(format="%b %d, %Y") }}</time>
+                </div>
+                {% elif page.extra.updated %}
                 <div class="meta-item">
                     <span class="meta-label">Updated</span>
                     <time datetime="{{ page.extra.updated }}">{{ page.extra.updated | date(format="%b %d, %Y") }}</time>
@@ -174,6 +193,23 @@
                 </div>
                 {% endif %}
             </section>
+
+            {% if page.extra.changelog %}
+            <!-- Article changelog -->
+            <section class="sidebar-changelog">
+                <details>
+                    <summary>Changelog <span class="changelog-count">{{ page.extra.changelog | length }}</span></summary>
+                    <ol class="changelog-list">
+                        {% for entry in page.extra.changelog %}
+                        <li class="changelog-entry">
+                            <time datetime="{{ entry.date }}">{{ entry.date | date(format="%b %d, %Y") }}</time>
+                            <span>{{ entry.description }}</span>
+                        </li>
+                        {% endfor %}
+                    </ol>
+                </details>
+            </section>
+            {% endif %}
 
             <!-- Actions -->
             <section class="sidebar-actions">
@@ -272,7 +308,10 @@
     "headline": "{{ page.title }}",
     "description": "{{ page.description | default(value='') }}",
     "datePublished": "{{ page.date }}",
-    {% if page.extra.updated %}
+    {% if page.extra.changelog %}
+    {% set latest_change = page.extra.changelog | first %}
+    "dateModified": "{{ latest_change.date }}",
+    {% elif page.extra.updated %}
     "dateModified": "{{ page.extra.updated }}",
     {% else %}
     "dateModified": "{{ page.date }}",
@@ -282,7 +321,7 @@
         "name": "{{ config.extra.author }}",
         "url": "{{ config.base_url | safe }}/about/"
     },
-    "image": "{{ config.base_url | safe }}{% if page.extra.og_image %}{{ page.extra.og_image }}{% elif config.extra.og_image %}{{ config.extra.og_image }}{% endif %}",
+    "image": "{% if page.extra.og_image %}{{ config.base_url | safe }}{{ page.extra.og_image }}{% elif page.extra.featured_image %}{{ page.permalink | safe }}{{ page.extra.featured_image }}{% elif config.extra.og_image %}{{ config.base_url | safe }}{{ config.extra.og_image }}{% endif %}",
     "publisher": {
         "@type": "Person",
         "name": "{{ config.extra.author }}"
