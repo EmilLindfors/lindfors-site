@@ -42,22 +42,47 @@ in_front == 1 { print > "'"$TEMP_DIR"'/frontmatter.toml" }
 front_done == 1 { print > "'"$TEMP_DIR"'/content.md" }
 ' "$INPUT_FILE"
 
-# Parse frontmatter for title and date
+# Parse frontmatter for title, date, and featured image
 TITLE=$(grep -E '^title\s*=' "$TEMP_DIR/frontmatter.toml" 2>/dev/null | sed 's/^title\s*=\s*"\(.*\)"/\1/' || echo "Untitled")
 DATE=$(grep -E '^date\s*=' "$TEMP_DIR/frontmatter.toml" 2>/dev/null | sed 's/^date\s*=\s*//' || echo "")
+FEATURED_IMAGE=$(grep -E '^featured_image\s*=' "$TEMP_DIR/frontmatter.toml" 2>/dev/null | sed 's/^featured_image\s*=\s*"\(.*\)"/\1/' || echo "")
 
 # Format date if present
 if [ -n "$DATE" ]; then
     DATE=$(date -d "$DATE" "+%B %d, %Y" 2>/dev/null || echo "$DATE")
 fi
 
+# Copy images from the blog post directory into the temp directory
+# Typst supports PNG, JPEG, GIF, SVG -- but NOT WebP
+POST_DIR=$(dirname "$INPUT_FILE")
+
+# Copy PNG, JPEG, GIF, SVG files directly
+for img in "$POST_DIR"/*.png "$POST_DIR"/*.jpg "$POST_DIR"/*.jpeg "$POST_DIR"/*.gif "$POST_DIR"/*.svg; do
+    [ -f "$img" ] && cp "$img" "$TEMP_DIR/"
+done
+
+# Convert WebP files to PNG (skip thumbnails)
+for img in "$POST_DIR"/*.webp; do
+    [ -f "$img" ] || continue
+    IMGNAME=$(basename "$img")
+    [[ "$IMGNAME" == *-thumb* ]] && continue
+    BASENAME="${IMGNAME%.webp}"
+    convert "$img" "$TEMP_DIR/$BASENAME.png" 2>/dev/null && \
+        echo "  Converted $IMGNAME -> $BASENAME.png"
+done
+
 # Preprocess markdown content:
-# 1. Convert internal anchor links [text](#ref-...) to just plain text
-# 2. Strip HTML reference paragraphs and convert to plain text
+# 1. Rewrite .webp image references to .png (for Typst compatibility)
+sed -i 's/\.webp)/.png)/g' "$TEMP_DIR/content.md"
+
+# 2. Strip the <!-- more --> separator
+sed -i '/^<!-- more -->$/d' "$TEMP_DIR/content.md"
+
+# 3. Convert internal anchor links [text](#ref-...) to just plain text
 sed -i -E 's/\[([0-9]+)\]\(#ref-[^)]+\)/\1/g' "$TEMP_DIR/content.md"
 sed -i -E 's/\[([A-Za-z0-9 ]+)\]\(#ref-[^)]+\)/\1/g' "$TEMP_DIR/content.md"
 
-# Convert HTML reference paragraphs to plain text for PDF
+# 4. Convert HTML reference paragraphs to plain text for PDF
 # <p id="ref-..." class="reference">Author (Year). <em>Title</em>. <a href="...">doi:...</a>.</p>
 sed -i -E 's/<p[^>]*class="reference"[^>]*>/- /g' "$TEMP_DIR/content.md"
 sed -i -E 's/<\/p>//g' "$TEMP_DIR/content.md"
@@ -77,7 +102,25 @@ cat > "$TEMP_DIR/document.typ" << 'TYPSTEOF'
 #show: academic.with(
 TYPSTEOF
 
-# Add the title and date (these need shell variable expansion)
+# Add the title, date, and featured image (these need shell variable expansion)
+# Rewrite .webp extension to .png for Typst compatibility
+FEATURED_IMAGE_TYPST="${FEATURED_IMAGE%.webp}"
+if [ "$FEATURED_IMAGE_TYPST" != "$FEATURED_IMAGE" ]; then
+    FEATURED_IMAGE_TYPST="${FEATURED_IMAGE_TYPST}.png"
+else
+    FEATURED_IMAGE_TYPST="$FEATURED_IMAGE"
+fi
+
+if [ -n "$FEATURED_IMAGE" ] && [ -f "$TEMP_DIR/$FEATURED_IMAGE_TYPST" ]; then
+cat >> "$TEMP_DIR/document.typ" << EOF
+  title: "$TITLE",
+  author: "Emil Lindfors",
+  date: "$DATE",
+  featured-image: "$FEATURED_IMAGE_TYPST",
+)
+
+EOF
+else
 cat >> "$TEMP_DIR/document.typ" << EOF
   title: "$TITLE",
   author: "Emil Lindfors",
@@ -85,6 +128,7 @@ cat >> "$TEMP_DIR/document.typ" << EOF
 )
 
 EOF
+fi
 
 # Add the cmarker render call
 cat >> "$TEMP_DIR/document.typ" << 'TYPSTEOF'

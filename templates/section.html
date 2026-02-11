@@ -6,35 +6,52 @@
 
 {% block content %}
 <section class="section-header">
-    <h1>{{ section.title }}</h1>
-    {% if section.description %}
-    <p class="section-description">{{ section.description }}</p>
-    {% endif %}
+    <h1>All posts</h1>
+    <p class="section-description">{{ section.extra.tagline | default(value="") }}</p>
 </section>
 
-{% if section.pages %}
-<ul class="post-list">
-    {% for page in section.pages %}
-    <li class="post-item">
-        <a href="{{ page.permalink }}">
-            <span class="post-title">{{ page.title }}</span>
-            <time datetime="{{ page.date }}">{{ page.date | date(format="%B %d, %Y") }}</time>
+{% if paginator %}
+{% set pages = paginator.pages %}
+{% else %}
+{% set pages = section.pages %}
+{% endif %}
+
+{% if pages | length > 0 %}
+<ul class="post-list post-list--section">
+    {% for page in pages %}
+    <li class="post-item{% if page.extra.featured_image %} has-thumb{% endif %}">
+        {% if page.extra.featured_image %}
+        {% set thumb = page.extra.featured_image | replace(from=".webp", to="-thumb.webp") %}
+        <a href="{{ page.permalink }}" class="post-thumb-link">
+            <img class="post-thumb" src="{{ page.path | safe }}{{ thumb }}" alt="{{ page.title }}" loading="lazy" width="600">
         </a>
-        {% if page.description %}
-        <p class="post-excerpt">{{ page.description }}</p>
         {% endif %}
-        {% if page.taxonomies.tags %}
-        <div class="post-tags">
-            {% for tag in page.taxonomies.tags %}
-            <span class="tag">{{ tag }}</span>
-            {% endfor %}
+        <div class="post-item-content">
+            <a href="{{ page.permalink }}">
+                <span class="post-title">{{ page.title }}</span>
+            </a>
+            {% if page.description %}
+            <p class="post-excerpt">{{ page.description }}</p>
+            {% endif %}
+            <div class="post-item-meta">
+                <time datetime="{{ page.date }}">{{ page.date | date(format="%B %d, %Y") }}</time>
+                {% if page.reading_time %}
+                <span class="reading-time">{{ page.reading_time }} min read</span>
+                {% endif %}
+            </div>
+            {% if page.taxonomies.tags %}
+            <div class="post-tags">
+                {% for tag in page.taxonomies.tags %}
+                <a href="{{ get_taxonomy_url(kind='tags', name=tag) }}" class="tag">{{ tag }}</a>
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
-        {% endif %}
     </li>
     {% endfor %}
 </ul>
 
-{% if paginator %}
+{% if paginator and paginator.number_pagers > 1 %}
 <nav class="pagination">
     {% if paginator.previous %}
     <a href="{{ paginator.previous }}" class="pagination-link">&larr; Newer</a>
