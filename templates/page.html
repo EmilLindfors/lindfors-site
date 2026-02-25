@@ -28,6 +28,9 @@
 {% elif config.extra.og_image %}
 <meta property="og:image" content="{{ config.base_url | safe }}{{ config.extra.og_image }}">
 {% endif %}
+{% if page.taxonomies.categories %}
+<meta property="og:article:section" content="{{ page.taxonomies.categories | first }}">
+{% endif %}
 {% if page.taxonomies.tags %}
 {% for tag in page.taxonomies.tags %}
 <meta property="og:article:tag" content="{{ tag }}">
@@ -47,6 +50,27 @@
 <meta name="twitter:image" content="{{ config.base_url | safe }}{{ config.extra.og_image }}">
 {% endif %}
 {% endblock twittercard %}
+
+{% block katex_css %}
+{% if page.extra.katex | default(value=false) %}
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.28/dist/katex.min.css" integrity="sha384-Wsr4Nh3yrvMf2KCebJchRJoVo1gTU6kcP05uRSh5NV3sj9+a8IomuJoQzf3sMq4T" crossorigin="anonymous">
+{% endif %}
+{% endblock katex_css %}
+
+{% block katex_js %}
+{% if page.extra.katex | default(value=false) %}
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.28/dist/katex.min.js" integrity="sha384-+W9OcrYK2/bD7BmUAk+xeFAyKp0QjyRQUCxeU31dfyTt/FrPsUgaBTLLkVf33qWt" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.28/dist/contrib/auto-render.min.js" integrity="sha384-hCXGrW6PitJEwbkoStFjeJxv+fSOOQKOPbJxSfM6G5sWZjAyWhXiTIIAmQqnlLlh" crossorigin="anonymous"
+    onload="renderMathInElement(document.body, {
+        delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false
+    });"></script>
+{% endif %}
+{% endblock katex_js %}
 
 {% block content %}
 <!-- Reading progress bar -->
@@ -87,10 +111,7 @@
         <section class="post-newsletter">
             <h3>Enjoyed this post?</h3>
             <p>Subscribe to get notified when I publish new articles on aquaculture, Rust, and technology.</p>
-            <form class="newsletter-form newsletter-form--post" action="{{ config.extra.newsletter_endpoint }}" method="POST">
-                <input type="email" name="email" placeholder="your@email.com" required aria-label="Email for newsletter">
-                <button type="submit">Subscribe</button>
-            </form>
+            {{ macros::newsletter_form(endpoint=config.extra.newsletter_endpoint, variant="post") }}
         </section>
         {% endif %}
 
@@ -130,12 +151,12 @@
 
         <footer class="post-footer">
             {% if page.earlier or page.later %}
-            <nav class="post-navigation">
+            <nav class="post-navigation" aria-label="Post navigation">
                 {% if page.earlier %}
-                <a href="{{ page.earlier.permalink }}" class="nav-earlier">&larr; {{ page.earlier.title }}</a>
+                <a href="{{ page.earlier.permalink }}" class="nav-earlier" aria-label="Previous post: {{ page.earlier.title }}">&larr; {{ page.earlier.title }}</a>
                 {% endif %}
                 {% if page.later %}
-                <a href="{{ page.later.permalink }}" class="nav-later">{{ page.later.title }} &rarr;</a>
+                <a href="{{ page.later.permalink }}" class="nav-later" aria-label="Next post: {{ page.later.title }}">{{ page.later.title }} &rarr;</a>
                 {% endif %}
             </nav>
             {% endif %}
@@ -149,7 +170,7 @@
             {% if page.toc and page.extra.toc | default(value=config.extra.toc) %}
             <section class="sidebar-toc">
                 <h3>{{ page.title }}</h3>
-                <nav class="toc-nav">
+                <nav class="toc-nav" aria-label="Table of contents">
                     <ul>
                         {% for h1 in page.toc %}
                         <li>
@@ -243,7 +264,7 @@
             </section>
 
             <!-- Citation Modal -->
-            <div id="cite-modal" class="cite-modal" style="display: none;">
+            <div id="cite-modal" class="cite-modal" role="dialog" aria-label="Cite this article" style="display: none;">
                 <div class="cite-tabs">
                     <button class="cite-tab active" onclick="showCiteFormat('bibtex')">BibTeX</button>
                     <button class="cite-tab" onclick="showCiteFormat('apa')">APA</button>
@@ -387,10 +408,28 @@ document.addEventListener('DOMContentLoaded', function() {
     updateProgress();
 });
 
+var _citeModalTrigger = null;
 function toggleCiteModal() {
     const modal = document.getElementById('cite-modal');
-    modal.style.display = modal.style.display === 'none' ? 'block' : 'none';
+    const isHidden = modal.style.display === 'none';
+    modal.style.display = isHidden ? 'block' : 'none';
+    if (isHidden) {
+        _citeModalTrigger = document.activeElement;
+        modal.querySelector('.cite-tab').focus();
+    } else if (_citeModalTrigger) {
+        _citeModalTrigger.focus();
+        _citeModalTrigger = null;
+    }
 }
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('cite-modal');
+        if (modal && modal.style.display !== 'none') {
+            toggleCiteModal();
+        }
+    }
+});
 
 function showCiteFormat(format) {
     document.querySelectorAll('.cite-content').forEach(el => el.style.display = 'none');

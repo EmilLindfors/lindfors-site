@@ -2,13 +2,13 @@
 title = "Innovation Narratives in Norwegian Aquaculture"
 description = "Exploring the diverse narratives surrounding sustainability and innovation in the Norwegian salmon farming industry."
 date = 2024-01-20
+draft = false
 [taxonomies]
 tags = ["aquaculture", "innovation", "sustainability", "norway"]
 categories = ["research"]
 
 [extra]
 toc = true
-featured = true
 +++
 
 The Norwegian salmon farming industry has undergone significant transformation over the past decades. This post explores the narratives that shape innovation pathways in the sector.
@@ -57,4 +57,3 @@ Understanding these narratives is essential for developing effective policies th
 <p id="ref-osmundsenFishFarmersRegulators2017" class="reference">Osmundsen, T. C., Almklov, P., & Tveterås, R. (2017). Fish farmers and regulators coping with the wickedness of aquaculture. <em>Aquaculture Economics & Management</em>, 21(1), 163-183. <a href="https://doi.org/10.1080/13657305.2017.1262476">doi:10.1080/13657305.2017.1262476</a>.</p>
 
 <p id="ref-osmundsenOperationalisationSustainabilitySustainable2020" class="reference">Osmundsen, T. C., Amundsen, V. S., Alexander, K. A., Asche, F., Bailey, J., Finstad, B., Olsen, M. S., Hernández, K., & Salgado, H. (2020). The operationalisation of sustainability: Sustainable aquaculture production as defined by certification schemes. <em>Global Environmental Change</em>, 60, 102025. <a href="https://doi.org/10.1016/j.gloenvcha.2019.102025">doi:10.1016/j.gloenvcha.2019.102025</a>.</p>
-

@@ -2,7 +2,7 @@
 title = "I replaced Mailchimp with a Rust Worker and a self-hosted mail server"
 description = "How I built a complete newsletter system with ~700 lines of Rust, a Cloudflare Worker, and Stalwart mail server. No database, no third-party email service, near-zero cost."
 date = 2026-02-18
-draft = true
+draft = false
 [taxonomies]
 tags = ["rust", "self-hosting", "email", "cloudflare"]
 categories = ["programming"]

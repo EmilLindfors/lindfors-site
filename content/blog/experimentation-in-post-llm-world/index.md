@@ -4,6 +4,9 @@ date = 2026-02-11
 draft = true
 +++
 
+There's a large body of innovation research that basically says: nobody knows what they're doing, and that's fine, because the not-knowing is the point. Innovation is fundamentally about trying things when you don't know if they'll work. Schumpeter (@Schumpeter1942) called this "creative destruction" and argued it was the essential fact about capitalism — this relentless churn of new combinations replacing old ones, driven by entrepreneurs experimenting with things that might fail. He was very explicit that this was an evolutionary process, which I think is underappreciated.
+
+
 From my innovation research we are pretty well versed with the fact that experimentation is a crucial part of innovation processes. This is in part due to the inherently unknown outcomes of innovation, which can lead to unexpected results and require continuous learning and adaptation. Similiarly, involving multiple stakeholders in the processes has been a popular approach to ensure the innovation process also incorporates the goals and views of all stakeholders, elading to better societal outcomes and generally leading to more responsible innovation. I have a section in my PhD on responsible innovation which you can read here: Lindfors ([2025](#ref-lindforsEvolutionTechnologicalTrajectories2025)).
 
 I've always been a curious person, and I am blown away by the new possibilities that arise from the post-LLM world. One of the largest hurdles traditionally assiciated with at least digital innovation has been barriers to entry in the form of knowledge gap. LLM's can help solve this. I have a great example on this.

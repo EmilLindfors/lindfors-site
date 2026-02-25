@@ -2,6 +2,8 @@
 
 {% block title %}{{ term.name | title }} | {{ config.title }}{% endblock %}
 
+{% block description %}Posts tagged with "{{ term.name }}" — {{ term.pages | length }} article{% if term.pages | length != 1 %}s{% endif %} on {{ config.title }}{% endblock %}
+
 {% block content %}
 <section class="section-header">
     <h1>{{ term.name | title }}</h1>

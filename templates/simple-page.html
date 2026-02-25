@@ -4,6 +4,36 @@
 
 {% block description %}{{ page.description | default(value=config.description) }}{% endblock %}
 
+{% block canonical %}{{ page.permalink | safe }}{% endblock %}
+
+{% block opengraph %}
+<meta property="og:title" content="{{ page.title }} | {{ config.title }}">
+<meta property="og:description" content="{{ page.description | default(value=config.description) }}">
+<meta property="og:type" content="profile">
+<meta property="og:url" content="{{ page.permalink | safe }}">
+{% if config.extra.og_image %}
+<meta property="og:image" content="{{ config.base_url | safe }}{{ config.extra.og_image }}">
+{% endif %}
+{% endblock opengraph %}
+
+{% if page.slug == "about" %}
+{% block jsonld %}
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Person",
+    "name": "{{ config.extra.author }}",
+    "url": "{{ page.permalink | safe }}",
+    "image": "{{ config.base_url | safe }}/emil.jpg",
+    "jobTitle": "Senior Software Engineer",
+    "description": "{{ page.description | default(value='') }}",
+    "email": "{{ config.extra.author_email }}"{% if config.extra.github or config.extra.linkedin %},
+    "sameAs": [{% if config.extra.github %}"{{ config.extra.github }}"{% endif %}{% if config.extra.github and config.extra.linkedin %}, {% endif %}{% if config.extra.linkedin %}"{{ config.extra.linkedin }}"{% endif %}]{% endif %}
+}
+</script>
+{% endblock jsonld %}
+{% endif %}
+
 {% block content %}
 <article class="simple-page">
     <header class="page-header">

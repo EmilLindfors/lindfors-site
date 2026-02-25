@@ -1,8 +1,14 @@
 {% extends "base.html" %}
 
-{% block title %}{{ section.title }} | {{ config.title }}{% endblock %}
+{% block title %}{% if paginator and paginator.current_index > 1 %}{{ section.title }} - Page {{ paginator.current_index }} | {{ config.title }}{% else %}{{ section.title }} | {{ config.title }}{% endif %}{% endblock %}
 
 {% block description %}{{ section.description | default(value=config.description) }}{% endblock %}
+
+{% block robots %}
+{% if paginator and paginator.current_index > 1 %}
+<meta name="robots" content="noindex, follow">
+{% endif %}
+{% endblock robots %}
 
 {% block content %}
 <section class="section-header">

@@ -1,13 +1,13 @@
 +++
 title = "Images on a static site: tradeoffs, limits, and a 150-line Rust optimizer"
 description = "Why I serve images from git instead of object storage, how many I can get away with, and the small Rust tool I built to convert and resize everything to WebP."
-date = 2026-03-11
-draft = true
+date = 2026-02-23
+draft = false
 [taxonomies]
 tags = ["zola", "web", "rust"]
 categories = ["programming"]
 [extra]
-featured = false
+featured = true
 featured_image = "hero.webp"
 toc = true
 +++

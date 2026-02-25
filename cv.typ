@@ -58,7 +58,7 @@
     #text(size: 11pt, fill: light-gray)[Senior Software Engineer | PhD Responsible Innovation]
     #v(0.3em)
     #text(size: 9pt)[
-      #link("mailto:emil@lindfors.io")[emil\@lindfors.io] #h(0.8em) | #h(0.8em)
+      #link("mailto:emil@lindfors.no")[emil\@lindfors.no] #h(0.8em) | #h(0.8em)
       +47 480 78 707 #h(0.8em) | #h(0.8em)
       #link("https://linkedin.com/in/emil-lindfors")[LinkedIn] #h(0.8em) | #h(0.8em)
       #link("https://github.com/EmilLindfors")[GitHub]

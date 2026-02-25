@@ -53,6 +53,7 @@ Understanding these narratives is essential for developing effective policies th
 
 <p id="ref-osmundsenOperationalisationSustainabilitySustainable2020" class="reference">Osmundsen, T. C., Amundsen, V. S., Alexander, K. A., Asche, F., Bailey, J., Finstad, B., Olsen, M. S., Hernández, K., & Salgado, H. (2020). The operationalisation of sustainability: Sustainable aquaculture production as defined by certification schemes. <em>Global Environmental Change</em>, 60, 102025. <a href="https://doi.org/10.1016/j.gloenvcha.2019.102025">doi:10.1016/j.gloenvcha.2019.102025</a>.</p>
 
+
 ---
 
 *[Read the full post on the site](https://lindfors.no/blog/aquaculture-innovation/) for math equations, citations, and interactive features.*

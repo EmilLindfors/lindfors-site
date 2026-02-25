@@ -41,6 +41,7 @@ if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
 fi
 
 echo "Sending..."
-curl -s -X POST "https://lindfors.no/api/send-newsletter?key=$ADMIN_KEY" \
+curl -s -X POST "https://lindfors.no/api/send-newsletter" \
+  -H "Authorization: Bearer $ADMIN_KEY" \
   -H 'Content-Type: application/json' \
   -d "$BODY" | python3 -m json.tool

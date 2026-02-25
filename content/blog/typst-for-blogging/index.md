@@ -1,8 +1,8 @@
 +++
 title = "I use Typst to generate PDFs of my blog posts and my CV"
 description = "How I replaced LaTeX with Typst to auto-generate downloadable PDFs for every blog post and keep my CV version-controlled. Markdown in, beautiful PDFs out."
-date = 2026-03-04
-draft = true
+date = 2026-02-14
+draft = false
 [taxonomies]
 tags = ["typst", "rust", "pdf", "writing"]
 categories = ["programming"]

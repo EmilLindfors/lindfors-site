@@ -10,20 +10,7 @@ get_section(path="blog/_index.md") %}
         and senior software engineer based in Norway.
     </p>
     {% if config.extra.newsletter_endpoint %}
-    <form
-        class="newsletter-form newsletter-form--hero"
-        action="{{ config.extra.newsletter_endpoint }}"
-        method="POST"
-    >
-        <input
-            type="email"
-            name="email"
-            placeholder="your@email.com"
-            required
-            aria-label="Email for newsletter"
-        />
-        <button type="submit">Subscribe to newsletter</button>
-    </form>
+    {{ macros::newsletter_form(endpoint=config.extra.newsletter_endpoint, variant="hero") }}
     <p class="hero-rss">
         Or follow via <a href="{{ get_url(path='atom.xml') }}">RSS</a>. ..or
         just remember to check back I guess? Or don't. no pressure!

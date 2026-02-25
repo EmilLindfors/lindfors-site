@@ -1,0 +1,15 @@
+{
+  "name": "lindfors.no",
+  "short_name": "lindfors",
+  "start_url": "/",
+  "display": "browser",
+  "background_color": "#F0EAE0",
+  "theme_color": "#1C3240",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

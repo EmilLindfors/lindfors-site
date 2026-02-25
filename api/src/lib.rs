@@ -51,16 +51,15 @@ struct StalwartGetResponse {
 
 fn cors_headers(req: &Request) -> Result<Headers> {
     let origin = req.headers().get("Origin")?.unwrap_or_default();
-    let allowed = if origin.contains("lindfors.no") {
-        origin
-    } else {
-        "https://lindfors.no".to_string()
+    let allowed = match origin.as_str() {
+        "https://lindfors.no" | "https://www.lindfors.no" => origin,
+        _ => "https://lindfors.no".to_string(),
     };
 
     let headers = Headers::new();
     headers.set("Access-Control-Allow-Origin", &allowed)?;
     headers.set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")?;
-    headers.set("Access-Control-Allow-Headers", "Content-Type")?;
+    headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization")?;
     Ok(headers)
 }
 
@@ -75,12 +74,22 @@ fn json_response(data: &ApiResponse, status: u16, headers: Headers) -> Result<Re
 }
 
 fn is_valid_email(email: &str) -> bool {
-    let parts: Vec<&str> = email.splitn(2, '@').collect();
-    parts.len() == 2
-        && !parts[0].is_empty()
-        && parts[1].contains('.')
-        && parts[1].len() >= 3
-        && email.len() >= 5
+    let Some((local, domain)) = email.split_once('@') else {
+        return false;
+    };
+    !local.is_empty()
+        && local.len() <= 64
+        && !local.starts_with('.')
+        && !local.ends_with('.')
+        && !local.contains("..")
+        && domain.len() >= 3
+        && domain.contains('.')
+        && !domain.starts_with('.')
+        && !domain.starts_with('-')
+        && !domain.ends_with('-')
+        && !domain.contains("..")
+        && domain.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
+        && email.len() <= 254
 }
 
 /// Call the Stalwart Management API.
@@ -168,14 +177,14 @@ fn parse_frontmatter(md: &str) -> (std::collections::HashMap<String, String>, &s
     }
 }
 
-/// Render markdown to HTML using pulldown-cmark.
+/// Render markdown to sanitized HTML using pulldown-cmark + ammonia.
 fn render_markdown(md: &str) -> String {
     use pulldown_cmark::{html, Options, Parser};
     let opts = Options::ENABLE_STRIKETHROUGH | Options::ENABLE_TABLES;
     let parser = Parser::new_ext(md, opts);
     let mut html_output = String::new();
     html::push_html(&mut html_output, parser);
-    html_output
+    ammonia::clean(&html_output)
 }
 
 /// Wrap rendered HTML content in the email template.
@@ -227,7 +236,50 @@ fn email_template(
     )
 }
 
+/// Strip HTML tags to produce a plain text version of an email body.
+fn html_to_plain_text(html: &str) -> String {
+    let mut text = String::with_capacity(html.len());
+    let mut in_tag = false;
+    let mut last_was_newline = false;
+
+    for ch in html.chars() {
+        match ch {
+            '<' => {
+                in_tag = true;
+                // Block-level tags get a newline
+                let rest = &html[html.len().saturating_sub(html.len())..];
+                let _ = rest; // we handle this via the closing '>' check below
+            }
+            '>' => {
+                in_tag = false;
+            }
+            _ if in_tag => {}
+            '\n' | '\r' => {
+                if !last_was_newline {
+                    text.push('\n');
+                    last_was_newline = true;
+                }
+            }
+            _ => {
+                text.push(ch);
+                last_was_newline = false;
+            }
+        }
+    }
+
+    // Decode common HTML entities
+    text.replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&rarr;", "->")
+        .replace("&middot;", "-")
+        .replace("&nbsp;", " ")
+}
+
 /// Send an email via Stalwart's JMAP API using Email/set + EmailSubmission/set.
+/// Returns Ok(()) on success or an error message describing what went wrong.
 async fn jmap_send_email(
     base_url: &str,
     credentials: &str,
@@ -237,8 +289,9 @@ async fn jmap_send_email(
     to: &str,
     subject: &str,
     html_body: &str,
-) -> Result<u16> {
+) -> std::result::Result<(), String> {
     let url = format!("{}/jmap/", base_url);
+    let plain_text = html_to_plain_text(html_body);
 
     let body = serde_json::json!({
         "using": [
@@ -259,11 +312,20 @@ async fn jmap_send_email(
                             "subject": subject,
                             "header:List-Unsubscribe:asRaw": " <https://lindfors.no/api/unsubscribe>",
                             "header:List-Unsubscribe-Post:asRaw": " List-Unsubscribe=One-Click",
+                            "textBody": [{
+                                "partId": "text",
+                                "type": "text/plain"
+                            }],
                             "htmlBody": [{
                                 "partId": "html",
                                 "type": "text/html"
                             }],
                             "bodyValues": {
+                                "text": {
+                                    "value": plain_text,
+                                    "isEncodingProblem": false,
+                                    "isTruncated": false
+                                },
                                 "html": {
                                     "value": html_body,
                                     "isEncodingProblem": false,
@@ -297,20 +359,64 @@ async fn jmap_send_email(
     });
 
     let body_str =
-        serde_json::to_string(&body).map_err(|e| Error::RustError(e.to_string()))?;
+        serde_json::to_string(&body).map_err(|e| format!("JSON serialization: {}", e))?;
 
     let headers = Headers::new();
-    headers.set("Authorization", &format!("Basic {}", credentials))?;
-    headers.set("Content-Type", "application/json")?;
+    headers.set("Authorization", &format!("Basic {}", credentials))
+        .map_err(|e| format!("Header error: {}", e))?;
+    headers.set("Content-Type", "application/json")
+        .map_err(|e| format!("Header error: {}", e))?;
 
     let mut init = RequestInit::new();
     init.with_method(Method::Post);
     init.with_headers(headers);
     init.with_body(Some(wasm_bindgen::JsValue::from_str(&body_str)));
 
-    let req = Request::new_with_init(&url, &init)?;
-    let resp = Fetch::Request(req).send().await?;
-    Ok(resp.status_code())
+    let req = Request::new_with_init(&url, &init)
+        .map_err(|e| format!("Request build: {}", e))?;
+    let mut resp = Fetch::Request(req).send().await
+        .map_err(|e| format!("JMAP fetch: {}", e))?;
+
+    if resp.status_code() != 200 {
+        return Err(format!("JMAP HTTP status {}", resp.status_code()));
+    }
+
+    // Parse JMAP response to check for method-level errors
+    let resp_body: serde_json::Value = resp.json().await
+        .map_err(|e| format!("JMAP response parse: {}", e))?;
+
+    // Check for notCreated errors in Email/set response
+    if let Some(method_responses) = resp_body.get("methodResponses").and_then(|v| v.as_array()) {
+        for call in method_responses {
+            let arr = match call.as_array() {
+                Some(a) if a.len() >= 2 => a,
+                _ => continue,
+            };
+            let method = arr[0].as_str().unwrap_or("");
+            let result = &arr[1];
+
+            // Check for JMAP-level errors (e.g. "error" method type)
+            if method == "error" {
+                let err_type = result.get("type").and_then(|v| v.as_str()).unwrap_or("unknown");
+                return Err(format!("JMAP error: {}", err_type));
+            }
+
+            // Check for notCreated in Email/set or EmailSubmission/set
+            if let Some(not_created) = result.get("notCreated") {
+                if let Some(obj) = not_created.as_object() {
+                    if !obj.is_empty() {
+                        let details: Vec<String> = obj.iter().map(|(k, v)| {
+                            let err_type = v.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
+                            format!("{}: {}", k, err_type)
+                        }).collect();
+                        return Err(format!("{} notCreated: {}", method, details.join(", ")));
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------
@@ -331,8 +437,12 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .await
 }
 
-/// POST /api/subscribe — add email to the Stalwart mailing list.
-async fn handle_subscribe(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
+/// Shared logic for subscribe/unsubscribe — validates email, calls Stalwart.
+async fn handle_subscription_op(
+    mut req: Request,
+    ctx: &RouteContext<()>,
+    action: &'static str,
+) -> Result<Response> {
     let headers = cors_headers(&req)?;
 
     let body: SubscribeRequest = match req.json().await {
@@ -367,7 +477,7 @@ async fn handle_subscribe(mut req: Request, ctx: RouteContext<()>) -> Result<Res
     let list_id = ctx.env.var("STALWART_LIST_ID")?.to_string();
 
     let ops = [StalwartPatchOp {
-        action: "addItem",
+        action,
         field: "externalMembers",
         value: email,
     }];
@@ -387,12 +497,17 @@ async fn handle_subscribe(mut req: Request, ctx: RouteContext<()>) -> Result<Res
         Err(_) => json_response(
             &ApiResponse {
                 success: false,
-                error: Some("Subscription failed".into()),
+                error: Some(format!("{} failed", action)),
             },
             500,
             headers,
         ),
     }
+}
+
+/// POST /api/subscribe — add email to the Stalwart mailing list.
+async fn handle_subscribe(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    handle_subscription_op(req, &ctx, "addItem").await
 }
 
 /// GET /api/unsubscribe — show the unsubscribe form.
@@ -401,71 +516,25 @@ async fn handle_unsubscribe_page(_req: Request, _ctx: RouteContext<()>) -> Resul
 }
 
 /// POST /api/unsubscribe — remove email from the Stalwart mailing list.
-async fn handle_unsubscribe_post(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let headers = cors_headers(&req)?;
-
-    let body: SubscribeRequest = match req.json().await {
-        Ok(b) => b,
-        Err(_) => {
-            return json_response(
-                &ApiResponse {
-                    success: false,
-                    error: Some("Invalid request body".into()),
-                },
-                400,
-                headers,
-            );
-        }
-    };
-
-    let email = body.email.trim().to_lowercase();
-
-    if !is_valid_email(&email) {
-        return json_response(
-            &ApiResponse {
-                success: false,
-                error: Some("Invalid email address".into()),
-            },
-            400,
-            headers,
-        );
-    }
-
-    let api_url = ctx.env.var("STALWART_API_URL")?.to_string();
-    let api_key = ctx.env.secret("STALWART_API_KEY")?.to_string();
-    let list_id = ctx.env.var("STALWART_LIST_ID")?.to_string();
-
-    let ops = [StalwartPatchOp {
-        action: "removeItem",
-        field: "externalMembers",
-        value: email,
-    }];
-
-    match stalwart_patch(&api_url, &api_key, &list_id, &ops).await {
-        Ok(status) if status < 300 => {
-            json_response(&ApiResponse { success: true, error: None }, 200, headers)
-        }
-        Ok(_) | Err(_) => json_response(
-            &ApiResponse {
-                success: false,
-                error: Some("Unsubscribe failed".into()),
-            },
-            500,
-            headers,
-        ),
-    }
+async fn handle_unsubscribe_post(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    handle_subscription_op(req, &ctx, "removeItem").await
 }
 
-/// GET /api/subscribers?key=... — admin: list current subscribers from Stalwart.
+/// Extract Bearer token from Authorization header.
+fn extract_bearer_token(req: &Request) -> Option<String> {
+    req.headers()
+        .get("Authorization")
+        .ok()
+        .flatten()
+        .and_then(|v| v.strip_prefix("Bearer ").map(|t| t.to_string()))
+}
+
+/// GET /api/subscribers — admin: list current subscribers from Stalwart.
 async fn handle_subscribers(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let url = req.url()?;
-    let params: std::collections::HashMap<String, String> =
-        url.query_pairs().into_owned().collect();
-
-    let key = params.get("key").cloned().unwrap_or_default();
     let admin_key = ctx.env.secret("ADMIN_KEY")?.to_string();
+    let token = extract_bearer_token(&req).unwrap_or_default();
 
-    if key != admin_key {
+    if token != admin_key {
         return json_response(
             &ApiResponse {
                 success: false,
@@ -499,16 +568,12 @@ async fn handle_subscribers(req: Request, ctx: RouteContext<()>) -> Result<Respo
     Ok(resp)
 }
 
-/// POST /api/send-newsletter?key=... — admin: send a newsletter to the mailing list via JMAP.
+/// POST /api/send-newsletter — admin: send a newsletter to the mailing list via JMAP.
 async fn handle_send_newsletter(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let url = req.url()?;
-    let params: std::collections::HashMap<String, String> =
-        url.query_pairs().into_owned().collect();
-
-    let key = params.get("key").cloned().unwrap_or_default();
     let admin_key = ctx.env.secret("ADMIN_KEY")?.to_string();
+    let token = extract_bearer_token(&req).unwrap_or_default();
 
-    if key != admin_key {
+    if token != admin_key {
         return json_response(
             &ApiResponse {
                 success: false,
@@ -598,36 +663,34 @@ async fn handle_send_newsletter(mut req: Request, ctx: RouteContext<()>) -> Resu
         &account_id,
         &identity_id,
         from,
-        &to,
+        to,
         &subject,
         &html,
     )
     .await
     {
-        Ok(status) if status == 200 => json_response(
-            &ApiResponse {
-                success: true,
-                error: None,
-            },
-            200,
-            cors_headers(&req)?,
-        ),
-        Ok(status) => json_response(
-            &ApiResponse {
-                success: false,
-                error: Some(format!("JMAP request failed (status {})", status)),
-            },
-            502,
-            cors_headers(&req)?,
-        ),
-        Err(e) => json_response(
-            &ApiResponse {
-                success: false,
-                error: Some(format!("Failed to send: {}", e)),
-            },
-            500,
-            cors_headers(&req)?,
-        ),
+        Ok(()) => {
+            console_log!("Newsletter sent: {}", body.slug);
+            json_response(
+                &ApiResponse {
+                    success: true,
+                    error: None,
+                },
+                200,
+                cors_headers(&req)?,
+            )
+        }
+        Err(e) => {
+            console_log!("Newsletter send failed: {}", e);
+            json_response(
+                &ApiResponse {
+                    success: false,
+                    error: Some(format!("Failed to send: {}", e)),
+                },
+                502,
+                cors_headers(&req)?,
+            )
+        }
     }
 }
 

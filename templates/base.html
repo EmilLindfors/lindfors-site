@@ -1,3 +1,4 @@
+{% import "macros.html" as macros %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="{% block description %}{{ config.description }}{% endblock %}">
     <meta name="author" content="{{ config.extra.author }}">
+    {% block robots %}{% endblock %}
 
     <title>{% block title %}{{ config.title }}{% endblock %}</title>
 
@@ -89,11 +91,8 @@
     <!-- Stylesheet -->
     <link rel="stylesheet" href="{{ get_url(path='style.css') }}">
 
-    <!-- KaTeX CSS -->
-    {% if config.extra.katex %}
-    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.28/dist/katex.min.css" integrity="sha384-Wsr4Nh3yrvMf2KCebJchRJoVo1gTU6kcP05uRSh5NV3sj9+a8IomuJoQzf3sMq4T" crossorigin="anonymous">
-    {% endif %}
+    <!-- KaTeX CSS (loaded per-page via block) -->
+    {% block katex_css %}{% endblock %}
 
     <!-- Feeds -->
     {% if config.generate_feeds %}
@@ -101,7 +100,10 @@
     {% endif %}
 
     <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>E</text></svg>">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="theme-color" content="#1C3240" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" content="#F0EAE0" media="(prefers-color-scheme: light)">
 
     <!-- JSON-LD: WebSite + Person -->
     {% block jsonld %}
@@ -170,10 +172,7 @@
             </div>
             {% if config.extra.newsletter_endpoint %}
             <div class="footer-newsletter">
-                <form class="newsletter-form newsletter-form--inline" action="{{ config.extra.newsletter_endpoint }}" method="POST">
-                    <input type="email" name="email" placeholder="your@email.com" required aria-label="Email for newsletter">
-                    <button type="submit">Subscribe</button>
-                </form>
+                {{ macros::newsletter_form(endpoint=config.extra.newsletter_endpoint, variant="inline") }}
             </div>
             {% endif %}
         </div>
@@ -238,17 +237,7 @@
     </script>
     {% endif %}
 
-    <!-- KaTeX auto-render -->
-    {% if config.extra.katex %}
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.28/dist/katex.min.js" integrity="sha384-+W9OcrYK2/bD7BmUAk+xeFAyKp0QjyRQUCxeU31dfyTt/FrPsUgaBTLLkVf33qWt" crossorigin="anonymous"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.28/dist/contrib/auto-render.min.js" integrity="sha384-hCXGrW6PitJEwbkoStFjeJxv+fSOOQKOPbJxSfM6G5sWZjAyWhXiTIIAmQqnlLlh" crossorigin="anonymous"
-        onload="renderMathInElement(document.body, {
-            delimiters: [
-                {left: '$$', right: '$$', display: true},
-                {left: '$', right: '$', display: false}
-            ],
-            throwOnError: false
-        });"></script>
-    {% endif %}
+    <!-- KaTeX auto-render (loaded per-page via block) -->
+    {% block katex_js %}{% endblock %}
 </body>
 </html>

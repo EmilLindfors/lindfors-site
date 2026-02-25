@@ -1,3 +1,12 @@
+{# Newsletter Form Macro #}
+
+{% macro newsletter_form(endpoint, variant="default") %}
+<form class="newsletter-form newsletter-form--{{ variant }}" action="{{ endpoint }}" method="POST">
+    <input type="email" name="email" placeholder="your@email.com" required aria-label="Email for newsletter">
+    <button type="submit">Subscribe{% if variant == "hero" %} to newsletter{% endif %}</button>
+</form>
+{% endmacro %}
+
 {# BibTeX Reference Formatting Macros #}
 
 {% macro format_reference(ref) %}

@@ -111,6 +111,17 @@ a {
     }
 }
 
+// Focus visible — keyboard-only focus indicator
+:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+
+// Remove default focus ring for mouse users
+:focus:not(:focus-visible) {
+    outline: none;
+}
+
 blockquote {
     margin: var(--spacing-md) 0;
     padding: var(--spacing-sm) var(--spacing-md);
@@ -176,11 +187,7 @@ pre {
     z-index: 100;
     border-bottom: 1px solid var(--color-border);
     backdrop-filter: blur(8px);
-    background-color: rgba(240, 234, 224, 0.92);
-}
-
-[data-theme="dark"] .site-header {
-    background-color: rgba(14, 26, 32, 0.92);
+    background-color: color-mix(in srgb, var(--color-bg) 92%, transparent);
 }
 
 .nav-container {
@@ -1747,12 +1754,12 @@ pre {
 
     h1 {
         font-size: 4rem;
-        color: var(--accent);
+        color: var(--color-accent);
         margin: 0 0 16px;
     }
 
     p {
-        color: var(--text-muted);
+        color: var(--color-text-secondary);
         font-size: 1.1rem;
         margin-bottom: 32px;
     }
@@ -1763,8 +1770,59 @@ pre {
         justify-content: center;
 
         a {
-            color: var(--link);
+            color: var(--color-link);
             font-weight: 500;
         }
+    }
+}
+
+// =============================================================================
+// Reduced Motion
+// =============================================================================
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+// =============================================================================
+// Print
+// =============================================================================
+
+@media print {
+    .site-header,
+    .site-footer,
+    .post-sidebar,
+    .post-newsletter,
+    .reading-progress,
+    .skip-link,
+    #theme-toggle {
+        display: none !important;
+    }
+
+    body {
+        color: #000;
+        background: #fff;
+    }
+
+    .post-main {
+        max-width: 100%;
+    }
+
+    a[href]::after {
+        content: " (" attr(href) ")";
+        font-size: 0.85em;
+        color: #555;
+    }
+
+    a[href^="#"]::after,
+    a[href^="javascript"]::after {
+        content: "";
     }
 }
