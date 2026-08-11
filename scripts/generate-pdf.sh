@@ -25,8 +25,6 @@ fi
 SLUG=$(basename "$(dirname "$INPUT_FILE")")
 OUTPUT_FILE="$OUTPUT_DIR/$SLUG.pdf"
 
-echo "Generating PDF for: $SLUG"
-
 # Create temp directory
 TEMP_DIR=$(mktemp -d)
 trap "rm -rf $TEMP_DIR" EXIT
@@ -42,10 +40,29 @@ in_front == 1 { print > "'"$TEMP_DIR"'/frontmatter.toml" }
 front_done == 1 { print > "'"$TEMP_DIR"'/content.md" }
 ' "$INPUT_FILE"
 
+# Drafts are not published, but static/pdf/<slug>.pdf is served at a guessable URL,
+# so generating one puts unpublished writing on the public site. Set INCLUDE_DRAFTS=1
+# to override for a local preview.
+DRAFT=$(grep -E '^draft\s*=' "$TEMP_DIR/frontmatter.toml" 2>/dev/null | sed -E 's/^draft[[:space:]]*=[[:space:]]*//' | tr -d '[:space:]')
+if [ "$DRAFT" = "true" ] && [ -z "$INCLUDE_DRAFTS" ]; then
+    echo "Skipping draft: $SLUG"
+    exit 0
+fi
+
+echo "Generating PDF for: $SLUG"
+
 # Parse frontmatter for title, date, and featured image
 TITLE=$(grep -E '^title\s*=' "$TEMP_DIR/frontmatter.toml" 2>/dev/null | sed 's/^title\s*=\s*"\(.*\)"/\1/' || echo "Untitled")
 DATE=$(grep -E '^date\s*=' "$TEMP_DIR/frontmatter.toml" 2>/dev/null | sed 's/^date\s*=\s*//' || echo "")
 FEATURED_IMAGE=$(grep -E '^featured_image\s*=' "$TEMP_DIR/frontmatter.toml" 2>/dev/null | sed 's/^featured_image\s*=\s*"\(.*\)"/\1/' || echo "")
+
+# Typst stamps a CreationDate into the PDF, so an unchanged post still produces a
+# different file on every run. deploy.sh does `git add -A`, which would turn that into
+# megabytes of meaningless churn per deploy. Pinning SOURCE_DATE_EPOCH to the post's
+# own date makes the output reproducible: it only changes when the post does.
+if [ -n "$DATE" ]; then
+    export SOURCE_DATE_EPOCH="$(date -d "$DATE" +%s 2>/dev/null || echo 0)"
+fi
 
 # Format date if present
 if [ -n "$DATE" ]; then

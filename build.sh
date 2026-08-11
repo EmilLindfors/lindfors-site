@@ -36,7 +36,9 @@ else
     # Generate CV PDF if needed
     echo "Generating CV..."
     if [ ! -f "$SCRIPT_DIR/static/cv.pdf" ] || [ "$SCRIPT_DIR/cv.typ" -nt "$SCRIPT_DIR/static/cv.pdf" ]; then
-        typst compile $FONT_PATHS "$SCRIPT_DIR/cv.typ" "$SCRIPT_DIR/static/cv.pdf" 2>&1 || echo "  Warning: Failed to generate CV PDF"
+        SOURCE_DATE_EPOCH="$(stable_epoch_for "$SCRIPT_DIR/cv.typ")" \
+            typst compile $FONT_PATHS "$SCRIPT_DIR/cv.typ" "$SCRIPT_DIR/static/cv.pdf" 2>&1 \
+            || echo "  Warning: Failed to generate CV PDF"
         echo "  Generated: cv.pdf"
     else
         echo "  CV up to date"

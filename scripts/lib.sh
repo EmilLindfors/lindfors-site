@@ -46,6 +46,18 @@ run_zola() {
     fi
 }
 
+# Typst stamps a CreationDate into every PDF, so rebuilds differ even when nothing
+# changed. Derive a stable timestamp for a source file -- its last commit, or its mtime
+# if it isn't committed yet -- so output only changes when the input does.
+stable_epoch_for() {
+    local f="$1" t
+    t="$(git log -1 --format=%ct -- "$f" 2>/dev/null)"
+    if [ -z "$t" ]; then
+        t="$(stat -c %Y "$f" 2>/dev/null || echo 0)"
+    fi
+    echo "$t"
+}
+
 # Typst needs TTF/OTF sources. static/fonts/ is woff2 and unusable here, and fonts/ is
 # gitignored, so a fresh clone has nothing and every PDF renders in fallback fonts.
 # Populate with scripts/fetch-fonts.sh.
