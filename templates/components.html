@@ -1,0 +1,96 @@
+{# Tera v2 components. Registered globally — no import needed at call sites. #}
+
+{# --- Newsletter --- #}
+
+{% component newsletter.form(endpoint: string, variant: string = "default") %}
+<form class="newsletter-form newsletter-form--{{ variant }}" action="{{ endpoint }}" method="POST">
+    <input type="email" name="email" placeholder="your@email.com" required aria-label="Email for newsletter">
+    <button type="submit">Subscribe{% if variant == "hero" %} to newsletter{% endif %}</button>
+</form>
+{% endcomponent newsletter.form %}
+
+{# --- Content components (replaces templates/shortcodes/) --- #}
+
+{% component figure(src: string, alt: string = "", caption: string = "", width: string = "") %}
+<figure class="figure">
+    <img src="{{ src }}" alt="{{ alt }}"{% if width %} width="{{ width }}"{% endif %}>
+    {% if caption %}
+    <figcaption>{{ caption }}</figcaption>
+    {% endif %}
+</figure>
+{% endcomponent figure %}
+
+{% component katex(block: bool = false) %}
+{% if block %}
+<div class="katex-display">$${{ body }}$$</div>
+{% else %}
+<span class="katex-inline">${{ body }}$</span>
+{% endif %}
+{% endcomponent katex %}
+
+{% component citation(key: string, num: string = "") %}
+<a href="#ref-{{ key }}" class="citation">[{{ num or key }}]</a>
+{% endcomponent citation %}
+
+{# --- BibTeX reference formatting --- #}
+
+{% component bib.reference(entry) %}
+{% if entry.type == "article" %}
+{{<bib.article entry={entry} />}}
+{% elif entry.type == "book" %}
+{{<bib.book entry={entry} />}}
+{% elif entry.type == "inproceedings" %}
+{{<bib.inproceedings entry={entry} />}}
+{% elif entry.type == "phdthesis" %}
+{{<bib.phdthesis entry={entry} />}}
+{% elif entry.type == "misc" %}
+{{<bib.misc entry={entry} />}}
+{% else %}
+{{<bib.generic entry={entry} />}}
+{% endif %}
+{% endcomponent bib.reference %}
+
+{% component bib.article(entry) %}
+<span class="ref-authors">{{ entry.author }}</span>.
+<span class="ref-title">"{{ entry.title }}"</span>.
+{% if entry.journal %}<em class="ref-journal">{{ entry.journal }}</em>{% endif %}{% if entry.volume %}, vol. {{ entry.volume }}{% endif %}{% if entry.number %}, no. {{ entry.number }}{% endif %}{% if entry.pages %}, pp. {{ entry.pages }}{% endif %}{% if entry.year %}, {{ entry.year }}{% endif %}.
+{% if entry.doi %}<a href="https://doi.org/{{ entry.doi }}" class="ref-doi">doi:{{ entry.doi }}</a>{% endif %}
+{% if entry.url %}<a href="{{ entry.url }}" class="ref-url">[link]</a>{% endif %}
+{% endcomponent bib.article %}
+
+{% component bib.book(entry) %}
+<span class="ref-authors">{{ entry.author }}</span>.
+<em class="ref-title">{{ entry.title }}</em>.
+{% if entry.publisher %}{{ entry.publisher }}{% endif %}{% if entry.year %}, {{ entry.year }}{% endif %}.
+{% if entry.isbn %}ISBN: {{ entry.isbn }}{% endif %}
+{% if entry.url %}<a href="{{ entry.url }}" class="ref-url">[link]</a>{% endif %}
+{% endcomponent bib.book %}
+
+{% component bib.inproceedings(entry) %}
+<span class="ref-authors">{{ entry.author }}</span>.
+<span class="ref-title">"{{ entry.title }}"</span>.
+{% if entry.booktitle %}In <em>{{ entry.booktitle }}</em>{% endif %}{% if entry.pages %}, pp. {{ entry.pages }}{% endif %}{% if entry.year %}, {{ entry.year }}{% endif %}.
+{% if entry.doi %}<a href="https://doi.org/{{ entry.doi }}" class="ref-doi">doi:{{ entry.doi }}</a>{% endif %}
+{% if entry.url %}<a href="{{ entry.url }}" class="ref-url">[link]</a>{% endif %}
+{% endcomponent bib.inproceedings %}
+
+{% component bib.phdthesis(entry) %}
+<span class="ref-authors">{{ entry.author }}</span>.
+<em class="ref-title">{{ entry.title }}</em>.
+PhD thesis, {% if entry.school %}{{ entry.school }}{% endif %}{% if entry.year %}, {{ entry.year }}{% endif %}.
+{% if entry.url %}<a href="{{ entry.url }}" class="ref-url">[link]</a>{% endif %}
+{% endcomponent bib.phdthesis %}
+
+{% component bib.misc(entry) %}
+<span class="ref-authors">{{ entry.author }}</span>.
+<span class="ref-title">"{{ entry.title }}"</span>.
+{% if entry.howpublished %}{{ entry.howpublished }}{% endif %}{% if entry.year %}, {{ entry.year }}{% endif %}.
+{% if entry.url %}<a href="{{ entry.url }}" class="ref-url">[link]</a>{% endif %}
+{% endcomponent bib.misc %}
+
+{% component bib.generic(entry) %}
+{% if entry.author %}<span class="ref-authors">{{ entry.author }}</span>. {% endif %}
+{% if entry.title %}<span class="ref-title">"{{ entry.title }}"</span>. {% endif %}
+{% if entry.year %}{{ entry.year }}.{% endif %}
+{% if entry.url %}<a href="{{ entry.url }}" class="ref-url">[link]</a>{% endif %}
+{% endcomponent bib.generic %}

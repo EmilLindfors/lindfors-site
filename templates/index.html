@@ -10,7 +10,7 @@ get_section(path="blog/_index.md") %}
         and senior software engineer based in Norway.
     </p>
     {% if config.extra.newsletter_endpoint %}
-    {{ macros::newsletter_form(endpoint=config.extra.newsletter_endpoint, variant="hero") }}
+    {{<newsletter.form endpoint={config.extra.newsletter_endpoint} variant="hero" />}}
     <p class="hero-rss">
         Or follow via <a href="{{ get_url(path='atom.xml') }}">RSS</a>. ..or
         just remember to check back I guess? Or don't. no pressure!
@@ -19,12 +19,12 @@ get_section(path="blog/_index.md") %}
 </section>
 
 <!-- Featured Posts -->
-{% set featured = blog.pages | filter(attribute="extra.featured", value=true) %}
+{% set featured = [p for p in blog.pages if p.extra.featured] %}
 {% if featured %}
 <section class="featured-posts">
     <h2>Featured</h2>
     <div class="featured-grid">
-        {% for page in featured | slice(end=2) %}
+        {% for page in featured[:2] %}
         <article
             class="featured-card{% if page.extra.featured_image %} has-image{% endif %}"
         >
@@ -68,7 +68,7 @@ get_section(path="blog/_index.md") %}
     <h2>Recent</h2>
     {% if blog.pages %}
     <ul class="post-list">
-        {% for page in blog.pages | slice(end=10) %} {% if not
+        {% for page in blog.pages[:10] %} {% if not
         page.extra.featured %}
         <li class="post-item">
             <a href="{{ page.permalink }}">

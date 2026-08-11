@@ -15,6 +15,16 @@ build_search_index = true
 generate_feeds = true
 feed_filenames = ["atom.xml"]
 
+# Zola 0.23+ runs page content through Tera before markdown, so any `{{ ... }}`
+# or `{% ... %}` in a post -- including inside fenced code blocks, which are NOT
+# exempt -- is executed as template syntax. These posts quote Tera source
+# throughout, so templating is disabled for them. Note: a post listed here
+# cannot use Tera components in its content.
+skip_content_templating = [
+    "blog/building-a-personal-blog-with-zola/index.md",
+    "blog/citations-on-a-static-site/index.md",
+]
+
 # Taxonomies
 taxonomies = [
     { name = "tags", feed = true },

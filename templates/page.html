@@ -1,7 +1,5 @@
 {% extends "base.html" %}
 
-{% import "macros.html" as macros %}
-
 {% block title %}{{ page.title }} | {{ config.title }}{% endblock %}
 
 {% block description %}{{ page.description | default(value=config.description) }}{% endblock %}
@@ -99,7 +97,7 @@
             <ol class="reference-list">
                 {% for ref in page.extra.references %}
                 <li id="ref-{{ ref.key }}">
-                    {{ macros::format_reference(ref=ref) }}
+                    {{<bib.reference entry={ref} />}}
                 </li>
                 {% endfor %}
             </ol>
@@ -111,34 +109,20 @@
         <section class="post-newsletter">
             <h3>Enjoyed this post?</h3>
             <p>Subscribe to get notified when I publish new articles on aquaculture, Rust, and technology.</p>
-            {{ macros::newsletter_form(endpoint=config.extra.newsletter_endpoint, variant="post") }}
+            {{<newsletter.form endpoint={config.extra.newsletter_endpoint} variant="post" />}}
         </section>
         {% endif %}
 
         <!-- Related posts (by shared tags) -->
-        {% if page.taxonomies.tags is defined and page.taxonomies.tags | length > 0 %}
+        {% if page.taxonomies.tags and page.taxonomies.tags | length > 0 %}
         {% set blog = get_section(path="blog/_index.md") %}
-        {% set_global related = [] %}
-        {% for post in blog.pages %}
-            {% if post.permalink != page.permalink %}
-                {% if post.taxonomies.tags is defined %}
-                    {% set_global has_shared = false %}
-                    {% for tag in post.taxonomies.tags %}
-                        {% if page.taxonomies.tags is containing(tag) %}
-                            {% set_global has_shared = true %}
-                        {% endif %}
-                    {% endfor %}
-                    {% if has_shared %}
-                        {% set_global related = related | concat(with=post) %}
-                    {% endif %}
-                {% endif %}
-            {% endif %}
-        {% endfor %}
+        {% set my_tags = page.taxonomies.tags %}
+        {% set related = [p for p in blog.pages if p.permalink != page.permalink and [t for t in (p.taxonomies.tags or []) if my_tags is containing(pat=t)] | length > 0] %}
         {% if related | length > 0 %}
         <section class="related-posts">
             <h3>Related posts</h3>
             <div class="related-grid">
-                {% for post in related | slice(end=3) %}
+                {% for post in related[:3] %}
                 <a href="{{ post.permalink }}" class="related-card">
                     <span class="related-title">{{ post.title }}</span>
                     <time datetime="{{ post.date }}">{{ post.date | date(format="%b %Y") }}</time>
@@ -291,7 +275,7 @@
                 <h3>Topics</h3>
                 <div class="tag-list">
                     {% for tag in page.taxonomies.tags %}
-                    <a href="{{ get_taxonomy_url(kind='tags', name=tag) }}" class="tag">{{ tag }}</a>
+                    <a href="{{ get_taxonomy_url(kind='tags', term=tag) }}" class="tag">{{ tag }}</a>
                     {% endfor %}
                 </div>
             </section>

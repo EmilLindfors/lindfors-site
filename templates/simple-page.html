@@ -16,8 +16,8 @@
 {% endif %}
 {% endblock opengraph %}
 
-{% if page.slug == "about" %}
 {% block jsonld %}
+{% if page.slug == "about" %}
 <script type="application/ld+json">
 {
     "@context": "https://schema.org",
@@ -31,8 +31,10 @@
     "sameAs": [{% if config.extra.github %}"{{ config.extra.github }}"{% endif %}{% if config.extra.github and config.extra.linkedin %}, {% endif %}{% if config.extra.linkedin %}"{{ config.extra.linkedin }}"{% endif %}]{% endif %}
 }
 </script>
-{% endblock jsonld %}
+{% else %}
+{{ super() }}
 {% endif %}
+{% endblock jsonld %}
 
 {% block content %}
 <article class="simple-page">
