@@ -9,6 +9,9 @@ categories = ["programming"]
 featured = true
 toc = true
 featured_image = "hero.webp"
+changelog = [
+    { date = 2026-08-11, description = "Updated for Zola 0.23 and the move from shell scripts to the site-tools Rust CLI." },
+]
 +++
 
 This site is a static blog that does more than most static blogs. Every post has a downloadable PDF. Citations link to formatted references with DOIs. There's a newsletter powered by a Rust Cloudflare Worker talking to a self-hosted mail server. Client-side search works without any external service. Light and dark themes respect your system preference. The fonts are self-hosted. There are no JavaScript frameworks, no build tools beyond what ships with the static site generator, and no third-party services besides Cloudflare for hosting.
@@ -33,9 +36,11 @@ The search index is interesting. Zola generates a JavaScript file (`search_index
 
 **Tera templates.** Zola uses [Tera](https://keats.github.io/tera/), a Jinja2-like template engine. If you've used Django, Flask, or Ansible, Tera feels familiar. Importantly, it has:
 
-- Macros with arguments (so I can write `{{ macros::format_reference(ref=ref) }}`)
+- Components with typed arguments (so I can write `{{<bib.reference entry={ref} />}}`)
 - Template inheritance (`{% extends "base.html" %}`)
-- `set_global` for variables that escape loop scope (a Tera-specific feature I use heavily for related posts)
+- List comprehensions, which is how the related-posts block picks out other posts sharing a tag
+
+Those first and third points used to read differently. Tera v2 -- which arrived with Zola 0.23 -- removed macros in favour of components, and dropped the `concat` and `filter` filters that the related-posts loop was built on. A comprehension does the same job in one line, so that part got shorter.
 
 **Fast.** Full site build is sub-second. Zola is written in Rust, and it shows. I never wait for builds. The dev server (`zola serve`) reloads instantly on save.
 
@@ -54,9 +59,7 @@ lindfors-site/
 │   ├── page.html                 # Blog post template
 │   ├── index.html                # Homepage
 │   ├── search.html               # Client-side search
-│   ├── macros.html               # Citation formatting
-│   ├── shortcodes/
-│   │   └── reference.html        # Inline citation shortcode
+│   ├── components.html           # Citation formatting, newsletter form
 │   └── pdf/
 │       └── academic.typ          # Typst template for blog PDFs
 ├── sass/
@@ -67,10 +70,11 @@ lindfors-site/
 │   └── newsletter/               # Generated newsletter markdown
 ├── api/
 │   └── src/lib.rs                # Rust Cloudflare Worker (newsletter API)
+├── tools/
+│   └── site-tools/               # Rust CLI: citations, PDFs, newsletter
 ├── scripts/
-│   ├── generate-pdf.sh           # Blog → Typst → PDF
-│   ├── generate-newsletter.sh    # Blog → newsletter markdown
-│   └── send-newsletter.sh        # Send via Worker API
+│   ├── fetch-fonts.sh            # Download font sources for Typst
+│   └── lib.sh                    # Shared build helpers
 ├── cv.typ                        # CV in Typst
 ├── build.sh                      # Full build pipeline
 ├── deploy.sh                     # Build + push
@@ -169,13 +173,13 @@ A Rust Cloudflare Worker handles subscribe, unsubscribe, and sending. It talks t
 
 ### Citations
 
-A Rust CLI tool ([zotero-cite](https://github.com/EmilLindfors/zotero-cite)) reads from my Zotero library and transforms `@citekey` references into linked citations with structured bibliographic data in TOML frontmatter. Tera macros render the references differently for HTML (with DOI links and semantic markup) and the template supports article, book, conference paper, thesis, and generic formats.
+A Rust CLI ([site-tools](https://github.com/emillindfors/lindfors-site/tree/main/tools/site-tools), wrapping my [zotero-cite](https://github.com/EmilLindfors/zotero-cite) crate) reads from my Zotero library and transforms `@citekey` references into linked citations with structured bibliographic data in TOML frontmatter. Tera components render the references for HTML with DOI links and semantic markup, and cover article, book, conference paper, thesis, and generic formats.
 
 **Deep-dive: [Proper citations on a static site: Zotero, Rust, and Typst](/blog/citations-on-a-static-site/)**
 
 ### PDF generation
 
-Every blog post gets a downloadable PDF generated with Typst. A shell script extracts the markdown body, preprocesses it (stripping HTML citations, converting shortcodes), and feeds it to Typst via the cmarker package. The academic template uses the same fonts and colors as the website. The CV is also Typst, also in the repo, also auto-compiled on deploy.
+Every published post gets a downloadable PDF generated with Typst. `site-tools` extracts the markdown body, preprocesses it (stripping HTML citations, flattening reference paragraphs), and feeds it to Typst via the cmarker package. The academic template uses the same fonts and colors as the website. The CV is also Typst, also in the repo, also auto-compiled on deploy.
 
 **Deep-dive: [I use Typst to generate PDFs of my blog posts and my CV](/blog/typst-for-blogging/)**
 
@@ -185,13 +189,13 @@ Everything runs in sequence:
 
 ```bash
 # 1. Resolve @citekey references → TOML frontmatter
-zotero-cite process ...
+site-tools cite process ...
 
 # 2. Compile CV
-typst compile cv.typ static/cv.pdf
+site-tools cv build
 
-# 3. Generate blog post PDFs
-./scripts/generate-pdf.sh ...
+# 3. Generate blog post PDFs (drafts are skipped)
+site-tools pdf all
 
 # 4. Build static site
 zola build
@@ -227,7 +231,7 @@ Under $6/month for a blog with a newsletter, PDF generation, client-side search,
 | Newsletter API | Rust Cloudflare Worker ([workers-rs](https://github.com/cloudflare/workers-rs)) |
 | Mail server | [Stalwart](https://stalw.art/) |
 | PDF generation | [Typst](https://typst.app/) |
-| Citation processing | [zotero-cite](https://github.com/EmilLindfors/zotero-cite) |
+| Citations, PDFs, newsletter | `site-tools` (Rust CLI, uses [zotero-cite](https://github.com/EmilLindfors/zotero-cite)) |
 | Body font | [Literata](https://github.com/googlefonts/literata) |
 | Heading font | [Inter](https://rsms.me/inter/) |
 | Search | elasticlunr (client-side, Zola-generated index) |

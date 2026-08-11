@@ -9,6 +9,9 @@ categories = ["programming"]
 
 [extra]
 toc = true
+changelog = [
+    { date = 2026-08-11, description = "Newsletter commands moved from shell scripts to the site-tools Rust CLI." },
+]
 +++
 
 I wanted a newsletter for my blog. The requirements were simple: let people subscribe, send them posts when I publish, let them unsubscribe. That's it.
@@ -194,10 +197,10 @@ I write blog posts in markdown with Zola. When I want to send a post as a newsle
 **1. Generate the newsletter markdown:**
 
 ```bash
-./scripts/generate-newsletter.sh content/blog/my-post/index.md
+site-tools newsletter gen content/blog/my-post/index.md
 ```
 
-This script extracts the post body, strips Zola-specific shortcodes (KaTeX math blocks, figure shortcodes), and writes a clean markdown file to `static/newsletter/my-post.md` with YAML frontmatter:
+This extracts the post body, strips markup that only makes sense on the web (math blocks, figures), and writes a clean markdown file to `static/newsletter/my-post.md` with YAML frontmatter:
 
 ```yaml
 ---
@@ -213,10 +216,10 @@ url: "https://lindfors.no/blog/my-post/"
 **3. Send:**
 
 ```bash
-./scripts/send-newsletter.sh my-post
+site-tools newsletter send my-post
 ```
 
-This script reads the admin key from `.env` and calls the worker:
+This reads the admin key from `.env` and calls the worker:
 
 ```bash
 curl -s -X POST "https://lindfors.no/api/send-newsletter?key=$ADMIN_KEY" \
@@ -239,12 +242,12 @@ The email template is inline in the worker -- hardcoded HTML with inline styles 
 
 Compare this to Mailchimp ($13/month for 500 subscribers), ConvertKit ($29/month), or Substack (10% of paid subscriptions). For a personal blog newsletter, the economics aren't even close.
 
-## What's missing (honestly)
+## What's missing
 
 This is not a replacement for Mailchimp if you need marketing features. Things I don't have:
 
 - **Double opt-in** -- I should add a confirmation email flow. Right now subscribing is single opt-in.
-- **Analytics** -- No open tracking, no click tracking. I genuinely don't care about this, but you might.
+- **Analytics** -- No open tracking, no click tracking. I don't care about this, but you might.
 - **Bounce handling** -- Stalwart handles bounces at the SMTP level, but I don't automatically remove bouncing addresses from the list.
 - **Pretty email editor** -- I write markdown. The template is hardcoded Rust. This is a feature, not a bug.
 - **Scheduling** -- I run a shell script when I want to send. No scheduled sends.

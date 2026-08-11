@@ -9,6 +9,9 @@ categories = ["programming"]
 
 [extra]
 toc = true
+changelog = [
+    { date = 2026-08-11, description = "PDF generation moved from shell scripts to the site-tools Rust CLI." },
+]
 +++
 
 Every post on this blog has a PDF button in the sidebar. Click it and you get a properly typeset document -- serif body text, sans-serif headings, colored code blocks, rendered math. It looks like something you'd find on arXiv, not a browser print-to-PDF.
@@ -62,6 +65,7 @@ But when you need power, Typst has a real programming language. Functions, varia
 }
 ```
 
+<!-- voice-ok: deliberate joke, keep -->
 That's readable. Try doing the same in LaTeX.
 
 ## My CV in Typst
@@ -167,7 +171,9 @@ The solution is a three-stage pipeline: extract, preprocess, render.
 
 ### Stage 1: Extract
 
-A shell script splits the markdown file into frontmatter and body using `awk`:
+`site-tools` splits the markdown file on the `+++` delimiters and parses the frontmatter with the `toml` crate.
+
+This started out as `awk` for the split, with `grep` and `sed` for the individual fields:
 
 ```bash
 awk '
@@ -181,7 +187,7 @@ front_done == 1 { print > "content.md" }
 ' "$INPUT_FILE"
 ```
 
-Title and date are parsed from the TOML frontmatter with `grep` and `sed`. Not elegant, but it works and has zero dependencies.
+Not elegant, but it worked and had zero dependencies. What pushed it into Rust was needing to read `draft`, which has to be a real boolean -- a `grep` for `^draft` matches `draft = "true"` just as happily, and drafts leaking into `static/pdf/` is the kind of mistake you find out about later. The typed parse also made it testable, which the shell version never was.
 
 ### Stage 2: Preprocess
 
@@ -303,12 +309,10 @@ The PDF generation steps in the deploy script are straightforward:
 
 ```bash
 # Compile CV
-typst compile cv.typ static/cv.pdf
+site-tools cv build
 
-# Generate blog post PDFs
-for post in content/blog/*/index.md; do
-    ./scripts/generate-pdf.sh "$post"
-done
+# Generate blog post PDFs (drafts are skipped)
+site-tools pdf all
 ```
 
 These run after [citation processing](/blog/citations-on-a-static-site/) (since the PDF generator needs resolved references) and before `zola build`. The generated PDFs go into `static/pdf/`, which Zola copies to the build output. Every post's sidebar has a PDF download button that links to `/pdf/{slug}.pdf`.
@@ -361,7 +365,7 @@ None of these are blockers. The output quality is excellent and the developer ex
 | Heading font | [Inter](https://rsms.me/inter/) (sans-serif) |
 | Code font | JetBrains Mono |
 
-The blog post template, CV source, build scripts, and font files are all in the [site repo](https://github.com/emillindfors/lindfors-site). If you're using Zola (or any static site generator) and want auto-generated PDFs, the `generate-pdf.sh` script is the piece to look at -- it's generic enough to adapt.
+The blog post template, CV source, and build tooling are all in the [site repo](https://github.com/emillindfors/lindfors-site). If you're using Zola (or any static site generator) and want auto-generated PDFs, `tools/site-tools/src/pdf.rs` is the piece to look at -- it's generic enough to adapt.
 
 ---
 
