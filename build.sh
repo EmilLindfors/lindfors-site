@@ -1,60 +1,45 @@
 #!/bin/bash
 # Build script for lindfors-site
-# Processes citations and builds the Zola site
+# Processes citations, regenerates PDFs, and builds the Zola site.
+#
+# The heavy lifting lives in tools/site-tools (Rust); this script is orchestration.
+# SKIP_PDFS=1 builds the site without touching the CV or post PDFs.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 source "$SCRIPT_DIR/scripts/lib.sh"
+
+SITE_TOOLS="$(site_tools_bin "$SCRIPT_DIR")"
 
 if [ -z "$SKIP_PDFS" ]; then
     preflight_pdfs "$SCRIPT_DIR" || exit 1
 fi
 
-# Install zotero-cite if not available
-if ! command -v zotero-cite &> /dev/null; then
-    echo "Installing zotero-cite..."
-    cargo install --git https://github.com/EmilLindfors/zotero-cite
-fi
-
-# Process all markdown files with citations
+# Process citations in posts that reference @citekeys.
+# Needs a local Zotero library, so a failure here is a warning rather than fatal.
 echo "Processing citations..."
-for file in $(find "$SCRIPT_DIR/content" -name "*.md" -type f); do
+for file in "$SCRIPT_DIR"/content/blog/*/index.md; do
+    [ -f "$file" ] || continue
     if grep -q '@[a-zA-Z]' "$file" 2>/dev/null; then
-        echo "  Processing: $file"
-        zotero-cite process "$file" --output "$file" 2>&1 || true
+        echo "  Processing: $(basename "$(dirname "$file")")"
+        "$SITE_TOOLS" cite process "$file" --output "$file" \
+            || echo "    Warning: citation processing failed"
     fi
 done
-
-# Font paths for Typst. --font-path is recursive, so one path covers inter, literata,
-# jetbrains-mono and libertinus. Populate it with scripts/fetch-fonts.sh.
-FONT_PATHS="--font-path $SCRIPT_DIR/fonts"
 
 if [ -n "$SKIP_PDFS" ]; then
     echo "Skipping CV and PDF generation (SKIP_PDFS set)"
 else
-    # Generate CV PDF if needed
     echo "Generating CV..."
-    if [ ! -f "$SCRIPT_DIR/static/cv.pdf" ] || [ "$SCRIPT_DIR/cv.typ" -nt "$SCRIPT_DIR/static/cv.pdf" ]; then
-        SOURCE_DATE_EPOCH="$(stable_epoch_for "$SCRIPT_DIR/cv.typ")" \
-            typst compile $FONT_PATHS "$SCRIPT_DIR/cv.typ" "$SCRIPT_DIR/static/cv.pdf" 2>&1 \
-            || echo "  Warning: Failed to generate CV PDF"
-        echo "  Generated: cv.pdf"
-    else
-        echo "  CV up to date"
-    fi
+    "$SITE_TOOLS" cv build || echo "  Warning: Failed to generate CV PDF"
 
-    # Generate PDFs for all blog posts
+    # Drafts are skipped by site-tools, so unpublished posts get no public PDF.
     echo "Generating PDFs..."
-    mkdir -p "$SCRIPT_DIR/static/pdf"
-    for post in "$SCRIPT_DIR"/content/blog/*/index.md; do
-        if [ -f "$post" ]; then
-            "$SCRIPT_DIR/scripts/generate-pdf.sh" "$post" 2>&1 || echo "  Warning: Failed to generate PDF for $post"
-        fi
-    done
+    "$SITE_TOOLS" pdf all || echo "  Warning: Some PDFs failed to generate"
 fi
 
-# Build with Zola
 echo "Building site with Zola..."
 run_zola build
 

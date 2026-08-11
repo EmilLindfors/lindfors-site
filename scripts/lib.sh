@@ -1,6 +1,5 @@
 #!/bin/bash
-# Shared helpers for build.sh, deploy.sh and scripts/generate-pdf.sh.
-# Source this, don't execute it.
+# Shared helpers for build.sh and deploy.sh. Source this, don't execute it.
 
 ZOLA_VERSION="0.23.2"
 ZOLA_IMAGE="ghcr.io/getzola/zola:v$ZOLA_VERSION"
@@ -46,16 +45,28 @@ run_zola() {
     fi
 }
 
-# Typst stamps a CreationDate into every PDF, so rebuilds differ even when nothing
-# changed. Derive a stable timestamp for a source file -- its last commit, or its mtime
-# if it isn't committed yet -- so output only changes when the input does.
-stable_epoch_for() {
-    local f="$1" t
-    t="$(git log -1 --format=%ct -- "$f" 2>/dev/null)"
-    if [ -z "$t" ]; then
-        t="$(stat -c %Y "$f" 2>/dev/null || echo 0)"
+# Path to the site-tools binary, building it first if it isn't there.
+#
+# site-tools owns citation processing, PDF generation and the newsletter; the shell
+# scripts that used to do those jobs are gone. Echoes the path on success.
+site_tools_bin() {
+    local root="$1"
+    local dir="$root/tools/site-tools"
+    local bin="$dir/target/release/site-tools"
+    [ -f "$bin.exe" ] && bin="$bin.exe"
+
+    if [ ! -f "$bin" ]; then
+        echo "Building site-tools..." >&2
+        if ! command -v cargo >/dev/null 2>&1; then
+            echo "Error: site-tools is not built and cargo is not installed." >&2
+            return 1
+        fi
+        (cd "$dir" && cargo build --release >&2) || return 1
+        bin="$dir/target/release/site-tools"
+        [ -f "$bin.exe" ] && bin="$bin.exe"
     fi
-    echo "$t"
+
+    echo "$bin"
 }
 
 # Typst needs TTF/OTF sources. static/fonts/ is woff2 and unusable here, and fonts/ is

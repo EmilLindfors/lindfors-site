@@ -9,6 +9,10 @@ categories = ["programming"]
 
 [extra]
 toc = true
+# This post teaches the @citekey syntax, so its code blocks are full of them. The
+# processor is not code-block aware and would rewrite the examples into rendered
+# citations. See scripts note in TODO.md.
+skip_citations = true
 changelog = [
     { date = 2026-08-11, description = "Updated for Zola 0.23: shortcodes and Tera macros replaced by components." },
 ]
