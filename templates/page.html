@@ -18,7 +18,7 @@
 {% elif page.extra.updated %}
 <meta property="og:article:modified_time" content="{{ page.extra.updated }}">
 {% endif %}
-<meta property="og:article:author" content="{{ config.extra.author }}">
+<meta property="og:article:author" content="{{ config.author }}">
 {% if page.extra.og_image %}
 <meta property="og:image" content="{{ config.base_url | safe }}{{ page.extra.og_image }}">
 {% elif page.extra.featured_image %}
@@ -255,7 +255,7 @@
                 </div>
                 <div id="cite-bibtex" class="cite-content">
                     <pre><code id="bibtex-code">@article{lindfors{{ page.date | date(format="%Y") }}_{{ page.slug | replace(from="-", to="_") }},
-  author = { {{- config.extra.author -}} },
+  author = { {{- config.author -}} },
   title = { {{- page.title -}} },
   year = { {{- page.date | date(format="%Y") -}} },
   url = { {{- config.base_url -}}/pdf/{{ page.slug }}.pdf},
@@ -264,7 +264,7 @@
                     <button class="cite-copy" onclick="copyCitation('bibtex')">Copy BibTeX</button>
                 </div>
                 <div id="cite-apa" class="cite-content" style="display: none;">
-                    <pre><code id="apa-code">{{ config.extra.author }} ({{ page.date | date(format="%Y") }}). {{ page.title }}. Retrieved <span class="cite-date"></span> from {{ config.base_url }}/pdf/{{ page.slug }}.pdf</code></pre>
+                    <pre><code id="apa-code">{{ config.author }} ({{ page.date | date(format="%Y") }}). {{ page.title }}. Retrieved <span class="cite-date"></span> from {{ config.base_url }}/pdf/{{ page.slug }}.pdf</code></pre>
                     <button class="cite-copy" onclick="copyCitation('apa')">Copy APA</button>
                 </div>
             </div>
@@ -284,8 +284,8 @@
             <!-- Author (at bottom - static info) -->
             <section class="sidebar-author">
                 <div class="author-header">
-                    <img src="/emil.jpg" alt="{{ config.extra.author }}" class="author-image">
-                    <div class="author-name">{{ config.extra.author }}</div>
+                    <img src="/emil.jpg" alt="{{ config.author }}" class="author-image">
+                    <div class="author-name">{{ config.author }}</div>
                 </div>
                 {% if config.extra.author_bio %}
                 <p class="author-bio">{{ config.extra.author_bio }}</p>
@@ -323,13 +323,13 @@
     {% endif %}
     "author": {
         "@type": "Person",
-        "name": "{{ config.extra.author }}",
+        "name": "{{ config.author }}",
         "url": "{{ config.base_url | safe }}/about/"
     },
     "image": "{% if page.extra.og_image %}{{ config.base_url | safe }}{{ page.extra.og_image }}{% elif page.extra.featured_image %}{{ page.permalink | safe }}{{ page.extra.featured_image }}{% elif config.extra.og_image %}{{ config.base_url | safe }}{{ config.extra.og_image }}{% endif %}",
     "publisher": {
         "@type": "Person",
-        "name": "{{ config.extra.author }}"
+        "name": "{{ config.author }}"
     },
     "mainEntityOfPage": {
         "@type": "WebPage",

@@ -5,6 +5,11 @@ base_url = "https://lindfors.no"
 title = "lindfors.no"
 description = "Writings on aquaculture, Rust programming, sensors, and scientific topics"
 
+# Top-level, not extra: the built-in atom.xml reads config.author and falls back to
+# printing "Unknown" without it. Templates use config.author too, so there is one
+# source of truth. author_email / author_bio stay in extra -- Zola has no field for them.
+author = "Emil Lindfors"
+
 # Whether to automatically compile all Sass files in the sass directory
 compile_sass = true
 
@@ -36,9 +41,19 @@ taxonomies = [
 [markdown.highlighting]
 theme = "catppuccin-mocha"
 
+[link_checker]
+# The DOIs themselves are fine -- doi.org resolves them with a 302. It is the
+# publishers behind it (MDPI, Taylor & Francis) that return 403 to anything without a
+# browser User-Agent, so every cited DOI reads as broken. Nothing to fix on our side.
+skip_prefixes = ["https://doi.org/"]
+
+# Don't fail the build because a third-party site is unreachable -- `zola check` runs
+# in CI, and an external outage is not a defect in this repo. Internal links and
+# anchors stay at the default "error", since those are ours to get right.
+external_level = "warn"
+
 [extra]
-# Author information
-author = "Emil Lindfors"
+# Author information (see top-level `author` for the name)
 author_email = "emil@lindfors.no"
 author_bio = "Researcher working on aquaculture innovation, sensor systems, and sustainable technology. Writing about Rust, science, and the intersection of technology and nature."
 
