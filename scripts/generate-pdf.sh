@@ -6,6 +6,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+source "$SCRIPT_DIR/lib.sh"
 TEMPLATE="$PROJECT_DIR/templates/pdf/academic.typ"
 OUTPUT_DIR="$PROJECT_DIR/static/pdf"
 
@@ -61,14 +62,27 @@ for img in "$POST_DIR"/*.png "$POST_DIR"/*.jpg "$POST_DIR"/*.jpeg "$POST_DIR"/*.
     [ -f "$img" ] && cp "$img" "$TEMP_DIR/"
 done
 
-# Convert WebP files to PNG (skip thumbnails)
+# Convert WebP files to PNG (skip thumbnails).
+# Typst cannot read WebP, so a failure here silently drops the image from the PDF --
+# which is how the committed PDFs ended up an order of magnitude smaller than they
+# should be. Fail loudly instead.
 for img in "$POST_DIR"/*.webp; do
     [ -f "$img" ] || continue
     IMGNAME=$(basename "$img")
     [[ "$IMGNAME" == *-thumb* ]] && continue
     BASENAME="${IMGNAME%.webp}"
-    convert "$img" "$TEMP_DIR/$BASENAME.png" 2>/dev/null && \
-        echo "  Converted $IMGNAME -> $BASENAME.png"
+
+    if ! find_imagemagick; then
+        echo "Error: $IMGNAME needs converting to PNG but no ImageMagick was found." >&2
+        echo "       ('convert' on Windows is usually the FAT-to-NTFS tool, not ImageMagick.)" >&2
+        exit 1
+    fi
+
+    if ! "$IM_CMD" "$img" "$TEMP_DIR/$BASENAME.png"; then
+        echo "Error: $IM_CMD failed to convert $IMGNAME" >&2
+        exit 1
+    fi
+    echo "  Converted $IMGNAME -> $BASENAME.png"
 done
 
 # Preprocess markdown content:

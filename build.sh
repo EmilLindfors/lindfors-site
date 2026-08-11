@@ -5,6 +5,11 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/scripts/lib.sh"
+
+if [ -z "$SKIP_PDFS" ]; then
+    preflight_pdfs "$SCRIPT_DIR" || exit 1
+fi
 
 # Install zotero-cite if not available
 if ! command -v zotero-cite &> /dev/null; then
@@ -24,26 +29,30 @@ done
 # Font paths for Typst
 FONT_PATHS="--font-path $SCRIPT_DIR/fonts/inter --font-path $SCRIPT_DIR/fonts/literata"
 
-# Generate CV PDF if needed
-echo "Generating CV..."
-if [ ! -f "$SCRIPT_DIR/static/cv.pdf" ] || [ "$SCRIPT_DIR/cv.typ" -nt "$SCRIPT_DIR/static/cv.pdf" ]; then
-    typst compile $FONT_PATHS "$SCRIPT_DIR/cv.typ" "$SCRIPT_DIR/static/cv.pdf" 2>&1 || echo "  Warning: Failed to generate CV PDF"
-    echo "  Generated: cv.pdf"
+if [ -n "$SKIP_PDFS" ]; then
+    echo "Skipping CV and PDF generation (SKIP_PDFS set)"
 else
-    echo "  CV up to date"
-fi
-
-# Generate PDFs for all blog posts
-echo "Generating PDFs..."
-mkdir -p "$SCRIPT_DIR/static/pdf"
-for post in "$SCRIPT_DIR"/content/blog/*/index.md; do
-    if [ -f "$post" ]; then
-        "$SCRIPT_DIR/scripts/generate-pdf.sh" "$post" 2>&1 || echo "  Warning: Failed to generate PDF for $post"
+    # Generate CV PDF if needed
+    echo "Generating CV..."
+    if [ ! -f "$SCRIPT_DIR/static/cv.pdf" ] || [ "$SCRIPT_DIR/cv.typ" -nt "$SCRIPT_DIR/static/cv.pdf" ]; then
+        typst compile $FONT_PATHS "$SCRIPT_DIR/cv.typ" "$SCRIPT_DIR/static/cv.pdf" 2>&1 || echo "  Warning: Failed to generate CV PDF"
+        echo "  Generated: cv.pdf"
+    else
+        echo "  CV up to date"
     fi
-done
+
+    # Generate PDFs for all blog posts
+    echo "Generating PDFs..."
+    mkdir -p "$SCRIPT_DIR/static/pdf"
+    for post in "$SCRIPT_DIR"/content/blog/*/index.md; do
+        if [ -f "$post" ]; then
+            "$SCRIPT_DIR/scripts/generate-pdf.sh" "$post" 2>&1 || echo "  Warning: Failed to generate PDF for $post"
+        fi
+    done
+fi
 
 # Build with Zola
 echo "Building site with Zola..."
-zola build
+run_zola build
 
 echo "Done!"

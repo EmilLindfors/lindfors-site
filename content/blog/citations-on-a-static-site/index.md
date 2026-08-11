@@ -2,13 +2,16 @@
 title = "Proper citations on a static site: Zotero, Rust, and Typst"
 description = "How I built a citation pipeline for my Zola blog that reads from Zotero, renders references in HTML, and generates PDFs with Typst. No LaTeX required."
 date = 2026-02-25
-draft = true
+draft = false
 [taxonomies]
 tags = ["rust", "zotero", "typst", "writing"]
 categories = ["programming"]
 
 [extra]
 toc = true
+changelog = [
+    { date = 2026-08-11, description = "Updated for Zola 0.23: shortcodes and Tera macros replaced by components." },
+]
 +++
 
 After finishing my PhD, one habit stuck: Its hard to write a claim without wanting to cite a source.
@@ -129,18 +132,20 @@ After this step, the markdown files are self-contained. They have both the inlin
 
 Once the references are in frontmatter, Zola's template system takes over.
 
-### The citation shortcode
+### The citation component
 
-For inline references, I use a minimal shortcode:
+For inline references, I use a minimal component:
 
 ```html
-{# templates/shortcodes/reference.html #}
-<a href="#ref-{{ key }}" class="citation">
-  [{{ num | default(value=key) }}]
-</a>
+{# templates/components.html #}
+{% component citation(key: string, num: string = "") %}
+<a href="#ref-{{ key }}" class="citation">[{{ num or key }}]</a>
+{% endcomponent citation %}
 ```
 
-In a post: `{{ reference(key="smith2024", num=1) }}` renders as a clickable `[1]` that jumps to the reference at the bottom.
+In a post: `{{<citation key="smith2024" num="1" />}}` renders as a clickable `[1]` that jumps to the reference at the bottom.
+
+This was a shortcode in `templates/shortcodes/reference.html` until Zola 0.23, which removed shortcodes entirely and replaced Tera's macros with components. The call syntax is the part that changed most -- `{{<name arg="value" />}}` rather than `{{ name(arg="value") }}`, and non-string arguments have to go in braces.
 
 ### The references section
 
@@ -153,7 +158,7 @@ The page template checks for `page.extra.references` and renders them automatica
     <ol class="reference-list">
         {% for ref in page.extra.references %}
         <li id="ref-{{ ref.key }}">
-            {{ macros::format_reference(ref=ref) }}
+            {{<bib.reference entry={ref} />}}
         </li>
         {% endfor %}
     </ol>
@@ -161,41 +166,43 @@ The page template checks for `page.extra.references` and renders them automatica
 {% endif %}
 ```
 
-### Format-aware macros
+### Format-aware components
 
-The `format_reference` macro dispatches on reference type:
+The `bib.reference` component dispatches on reference type:
 
 ```html
-{% macro format_reference(ref) %}
-{% if ref.type == "article" %}
-    {{ self::format_article(ref=ref) }}
-{% elif ref.type == "book" %}
-    {{ self::format_book(ref=ref) }}
-{% elif ref.type == "inproceedings" %}
-    {{ self::format_inproceedings(ref=ref) }}
-{% elif ref.type == "phdthesis" %}
-    {{ self::format_phdthesis(ref=ref) }}
+{% component bib.reference(entry) %}
+{% if entry.type == "article" %}
+    {{<bib.article entry={entry} />}}
+{% elif entry.type == "book" %}
+    {{<bib.book entry={entry} />}}
+{% elif entry.type == "inproceedings" %}
+    {{<bib.inproceedings entry={entry} />}}
+{% elif entry.type == "phdthesis" %}
+    {{<bib.phdthesis entry={entry} />}}
 {% else %}
-    {{ self::format_generic(ref=ref) }}
+    {{<bib.generic entry={entry} />}}
 {% endif %}
-{% endmacro %}
+{% endcomponent bib.reference %}
 ```
 
-Each type macro knows which fields to expect. An article gets journal, volume, issue, pages, and DOI. A book gets publisher and ISBN. A conference paper gets proceedings title. The macros handle missing fields gracefully -- not every article has a DOI, not every book has a URL.
+Components are registered globally by name, so there's no `{% import %}` and no `self::` prefix. The dotted `bib.` names are just namespacing. The parameter is `entry` rather than `ref` because `ref` as a variable name next to a `bib.`-prefixed component call was asking for trouble.
 
-Here's the article macro:
+Each type component knows which fields to expect. An article gets journal, volume, issue, pages, and DOI. A book gets publisher and ISBN. A conference paper gets proceedings title. They handle missing fields gracefully -- not every article has a DOI, not every book has a URL.
+
+Here's the article component:
 
 ```html
-{% macro format_article(ref) %}
-<span class="ref-authors">{{ ref.author }}</span>.
-<span class="ref-title">"{{ ref.title }}"</span>.
-{% if ref.journal %}<em class="ref-journal">{{ ref.journal }}</em>{% endif %}
-{% if ref.volume %}, vol. {{ ref.volume }}{% endif %}
-{% if ref.number %}, no. {{ ref.number }}{% endif %}
-{% if ref.pages %}, pp. {{ ref.pages }}{% endif %}
-{% if ref.year %}, {{ ref.year }}{% endif %}.
-{% if ref.doi %}<a href="https://doi.org/{{ ref.doi }}">doi:{{ ref.doi }}</a>{% endif %}
-{% endmacro %}
+{% component bib.article(entry) %}
+<span class="ref-authors">{{ entry.author }}</span>.
+<span class="ref-title">"{{ entry.title }}"</span>.
+{% if entry.journal %}<em class="ref-journal">{{ entry.journal }}</em>{% endif %}
+{% if entry.volume %}, vol. {{ entry.volume }}{% endif %}
+{% if entry.number %}, no. {{ entry.number }}{% endif %}
+{% if entry.pages %}, pp. {{ entry.pages }}{% endif %}
+{% if entry.year %}, {{ entry.year }}{% endif %}.
+{% if entry.doi %}<a href="https://doi.org/{{ entry.doi }}">doi:{{ entry.doi }}</a>{% endif %}
+{% endcomponent bib.article %}
 ```
 
 This renders to something like:
@@ -253,15 +260,15 @@ I didn't use it because:
 |---|---|
 | Reference manager | [Zotero](https://www.zotero.org/) + [Better BibTeX](https://retorque.re/zotero-better-bibtex/) |
 | Citation processing | [zotero-cite](https://github.com/EmilLindfors/zotero-cite) (Rust CLI) |
-| Template rendering | Tera macros in [Zola](https://www.getzola.org/) |
+| Template rendering | Tera components in [Zola](https://www.getzola.org/) |
 | Math (web) | [KaTeX](https://katex.org/) |
 
 ## What I'd change
 
 If I were starting over:
 
-- **CSL support in zotero-cite.** Right now the formatting is hardcoded in Tera macros. Supporting CSL styles would let me switch between APA, IEEE, Vancouver, etc. without changing templates.
-- **Automatic numbering.** Currently I manually assign citation numbers with `{{ reference(key="...", num=1) }}`. The shortcode should auto-number based on order of appearance.
+- **CSL support in zotero-cite.** Right now the formatting is hardcoded in Tera components. Supporting CSL styles would let me switch between APA, IEEE, Vancouver, etc. without changing templates.
+- **Automatic numbering.** Currently I manually assign citation numbers with `{{<citation key="..." num="1" />}}`. It should auto-number based on order of appearance.
 - **Bidirectional links.** Clicking a citation scrolls to the reference, but clicking a reference doesn't scroll back to where it was cited. This is standard in PDFs but tricky in HTML.
 
 These are improvements, not blockers. The system works well enough that I use it for every post that needs references.
@@ -270,7 +277,7 @@ These are improvements, not blockers. The system works well enough that I use it
 
 Blog posts with citations are better blog posts. When I write "production costs vary significantly across salmon-producing countries", readers shouldn't have to trust me -- they should be able to click through to Iversen et al. (2020) and check for themselves.
 
-Academic writing tools make this easy but are terrible for web publishing. Blogging tools are great for the web but ignore citations entirely. Bridging the gap took a small Rust CLI and some Tera macros. The pieces were all there -- they just needed connecting.
+Academic writing tools make this easy but are terrible for web publishing. Blogging tools are great for the web but ignore citations entirely. Bridging the gap took a small Rust CLI and some Tera components. The pieces were all there -- they just needed connecting.
 
 The code for `zotero-cite` is [on GitHub](https://github.com/EmilLindfors/zotero-cite). If you use Zotero and a static site generator, it might save you some time.
 
