@@ -20,27 +20,21 @@ CACHE_DIR="$FONTS_DIR/.cache"
 FORCE=""
 [ "$1" = "--force" ] && FORCE=1
 
+# Static instances only. Typst does not support variable fonts -- it warns
+# "variable fonts are not currently supported and may render incorrectly" and hints to
+# install a static version -- so the google/fonts builds of Inter and Literata, which
+# ship only variable TTFs, are unusable here despite being the obvious source.
+INTER_URL="https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip"
+INTER_SHA="9883fdd4a49d4fb66bd8177ba6625ef9a64aa45899767dde3d36aa425756b11e"
+
+LITERATA_URL="https://github.com/googlefonts/literata/releases/download/3.103/3.103.zip"
+LITERATA_SHA="f7fb973cafb26cf785cbebaeaf51c18f87c15a3bcf4d82a7d4857564db5b056d"
+
 JBMONO_URL="https://github.com/JetBrains/JetBrainsMono/releases/download/v2.304/JetBrainsMono-2.304.zip"
 JBMONO_SHA="6f6376c6ed2960ea8a963cd7387ec9d76e3f629125bc33d1fdcd7eb7012f7bbf"
 
 LIBERTINUS_URL="https://github.com/alerque/libertinus/releases/download/v7.051/Libertinus-7.051.zip"
 LIBERTINUS_SHA="4d9be29b5cb380c35af8ba967abcc752ad1e07be1f738a9789c33e0dd7478c92"
-
-# Inter and Literata come from google/fonts, which has no releases, so pin the commit
-# that last touched each directory.
-#
-# Inter specifically must come from here rather than the upstream rsms/inter release:
-# that ships InterVariable.ttf, whose family name is "Inter Variable", and the Typst
-# templates ask for "Inter". The google/fonts build registers as plain "Inter".
-GF_INTER_COMMIT="0b58fb370093f9a9f4ff785d94405710b79de67c"
-INTER_BASE="https://raw.githubusercontent.com/google/fonts/$GF_INTER_COMMIT/ofl/inter"
-INTER_ROMAN_SHA="29160a80ff49ddcab2c97711247e08b1fab27a484a329ce8b813d820dc559031"
-INTER_ITALIC_SHA="acd98e64795781b2058f07b18475e0ecee2a0fe2b42a49e2f9e37d0d6bf66ce6"
-
-GF_LITERATA_COMMIT="4e5f06dbb274a27ebe71ed54ea706b3ee40eabd9"
-LITERATA_BASE="https://raw.githubusercontent.com/google/fonts/$GF_LITERATA_COMMIT/ofl/literata"
-LITERATA_ROMAN_SHA="b41138c9373112f32abb589cc22e8674b06ed4048b0c513be922bdd26f274440"
-LITERATA_ITALIC_SHA="d483dfaeba9cbf4ce71d32a52ee65df82f7e35b15fff8d1011cdb242d1fcd465"
 
 sha_of() { sha256sum "$1" | awk '{print $1}'; }
 
@@ -88,10 +82,12 @@ if have_family inter; then
     echo "  inter: already present"
 else
     mkdir -p "$FONTS_DIR/inter"
-    fetch "$INTER_BASE/Inter%5Bopsz%2Cwght%5D.ttf" "$INTER_ROMAN_SHA" \
-        "$FONTS_DIR/inter/Inter[opsz,wght].ttf"
-    fetch "$INTER_BASE/Inter-Italic%5Bopsz%2Cwght%5D.ttf" "$INTER_ITALIC_SHA" \
-        "$FONTS_DIR/inter/Inter-Italic[opsz,wght].ttf"
+    fetch "$INTER_URL" "$INTER_SHA" "$CACHE_DIR/Inter-4.1.zip"
+    # The statics live under extras/; the archive root holds only the variable build.
+    unzip -o -j -q "$CACHE_DIR/Inter-4.1.zip" \
+        "extras/ttf/Inter-Regular.ttf" "extras/ttf/Inter-Italic.ttf" \
+        "extras/ttf/Inter-SemiBold.ttf" "extras/ttf/Inter-Bold.ttf" \
+        "extras/ttf/Inter-BoldItalic.ttf" -d "$FONTS_DIR/inter"
     echo "  inter: ok"
 fi
 
@@ -100,10 +96,11 @@ if have_family literata; then
     echo "  literata: already present"
 else
     mkdir -p "$FONTS_DIR/literata"
-    fetch "$LITERATA_BASE/Literata%5Bopsz%2Cwght%5D.ttf" "$LITERATA_ROMAN_SHA" \
-        "$FONTS_DIR/literata/Literata[opsz,wght].ttf"
-    fetch "$LITERATA_BASE/Literata-Italic%5Bopsz%2Cwght%5D.ttf" "$LITERATA_ITALIC_SHA" \
-        "$FONTS_DIR/literata/Literata-Italic[opsz,wght].ttf"
+    fetch "$LITERATA_URL" "$LITERATA_SHA" "$CACHE_DIR/Literata-3.103.zip"
+    unzip -o -j -q "$CACHE_DIR/Literata-3.103.zip" \
+        "fonts/ttf/Literata-Regular.ttf" "fonts/ttf/Literata-Italic.ttf" \
+        "fonts/ttf/Literata-Bold.ttf" "fonts/ttf/Literata-BoldItalic.ttf" \
+        -d "$FONTS_DIR/literata"
     echo "  literata: ok"
 fi
 
@@ -113,10 +110,10 @@ if have_family jetbrains-mono; then
 else
     mkdir -p "$FONTS_DIR/jetbrains-mono"
     fetch "$JBMONO_URL" "$JBMONO_SHA" "$CACHE_DIR/JetBrainsMono-2.304.zip"
-    # The member names contain [wght], which unzip would read as a glob character
-    # class, so match the directory instead -- it holds exactly the two variable TTFs.
     unzip -o -j -q "$CACHE_DIR/JetBrainsMono-2.304.zip" \
-        "fonts/variable/*" -d "$FONTS_DIR/jetbrains-mono"
+        "fonts/ttf/JetBrainsMono-Regular.ttf" "fonts/ttf/JetBrainsMono-Italic.ttf" \
+        "fonts/ttf/JetBrainsMono-Bold.ttf" "fonts/ttf/JetBrainsMono-BoldItalic.ttf" \
+        -d "$FONTS_DIR/jetbrains-mono"
     echo "  jetbrains-mono: ok"
 fi
 
