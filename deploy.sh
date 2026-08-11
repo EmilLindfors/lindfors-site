@@ -40,7 +40,7 @@ else
     # they have been out of sync for a while.
     echo "Generating CV..."
     mkdir -p "$SCRIPT_DIR/static"
-    typst compile --font-path "$SCRIPT_DIR/fonts/inter" --font-path "$SCRIPT_DIR/fonts/literata" \
+    typst compile --font-path "$SCRIPT_DIR/fonts" \
         "$SCRIPT_DIR/cv.typ" "$SCRIPT_DIR/static/cv.pdf" 2>&1 || echo "  Warning: Failed to generate CV"
 
     # Generate blog post PDFs

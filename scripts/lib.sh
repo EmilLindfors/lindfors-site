@@ -46,28 +46,13 @@ run_zola() {
     fi
 }
 
-# Locate a real ImageMagick. Sets IM_CMD on success.
-#
-# Careful on Windows: C:\Windows\system32\convert.exe is the FAT-to-NTFS volume
-# converter and happily shadows ImageMagick on PATH, so the name alone proves nothing.
-find_imagemagick() {
-    local c
-    for c in magick convert; do
-        if command -v "$c" >/dev/null 2>&1 && "$c" -version 2>/dev/null | grep -qi imagemagick; then
-            IM_CMD="$c"
-            return 0
-        fi
-    done
-    IM_CMD=""
-    return 1
-}
-
-# Typst needs the font sources, which are gitignored and not downloaded automatically.
-# Without them every PDF silently renders in fallback fonts.
+# Typst needs TTF/OTF sources. static/fonts/ is woff2 and unusable here, and fonts/ is
+# gitignored, so a fresh clone has nothing and every PDF renders in fallback fonts.
+# Populate with scripts/fetch-fonts.sh.
 fonts_present() {
     local root="$1" d
-    for d in inter literata; do
-        [ -d "$root/fonts/$d" ] || return 1
+    for d in inter literata jetbrains-mono libertinus; do
+        ls "$root/fonts/$d"/*.[to]tf >/dev/null 2>&1 || return 1
     done
     return 0
 }
@@ -78,17 +63,10 @@ preflight_pdfs() {
     local root="$1" ok=0
 
     if ! fonts_present "$root"; then
-        echo "Error: fonts/inter and fonts/literata are missing." >&2
+        echo "Error: font sources are missing from fonts/." >&2
         echo "       Typst would fall back to system fonts and every regenerated PDF" >&2
-        echo "       would differ from the committed ones. Restore them, or run SKIP_PDFS=1." >&2
-        ok=1
-    fi
-
-    if ls "$root"/content/blog/*/*.webp >/dev/null 2>&1 && ! find_imagemagick; then
-        echo "Error: no ImageMagick found (checked 'magick' and 'convert')." >&2
-        echo "       Posts have .webp images and Typst cannot read WebP, so PDFs would" >&2
-        echo "       be generated without their images. Install ImageMagick, or run" >&2
-        echo "       SKIP_PDFS=1 to leave the committed PDFs alone." >&2
+        echo "       would differ from the committed ones." >&2
+        echo "       Run ./scripts/fetch-fonts.sh (or SKIP_PDFS=1 to skip PDFs)." >&2
         ok=1
     fi
 

@@ -6,7 +6,6 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-source "$SCRIPT_DIR/lib.sh"
 TEMPLATE="$PROJECT_DIR/templates/pdf/academic.typ"
 OUTPUT_DIR="$PROJECT_DIR/static/pdf"
 
@@ -53,50 +52,28 @@ if [ -n "$DATE" ]; then
     DATE=$(date -d "$DATE" "+%B %d, %Y" 2>/dev/null || echo "$DATE")
 fi
 
-# Copy images from the blog post directory into the temp directory
-# Typst supports PNG, JPEG, GIF, SVG -- but NOT WebP
+# Copy images from the blog post directory into the temp directory.
+# Typst reads WebP natively (verified on 0.14.2), so there is no conversion step and
+# no ImageMagick dependency. This used to shell out to `convert`, which on Windows
+# resolves to the FAT-to-NTFS tool and silently produced image-less PDFs.
 POST_DIR=$(dirname "$INPUT_FILE")
 
-# Copy PNG, JPEG, GIF, SVG files directly
-for img in "$POST_DIR"/*.png "$POST_DIR"/*.jpg "$POST_DIR"/*.jpeg "$POST_DIR"/*.gif "$POST_DIR"/*.svg; do
-    [ -f "$img" ] && cp "$img" "$TEMP_DIR/"
-done
-
-# Convert WebP files to PNG (skip thumbnails).
-# Typst cannot read WebP, so a failure here silently drops the image from the PDF --
-# which is how the committed PDFs ended up an order of magnitude smaller than they
-# should be. Fail loudly instead.
-for img in "$POST_DIR"/*.webp; do
+for img in "$POST_DIR"/*.png "$POST_DIR"/*.jpg "$POST_DIR"/*.jpeg "$POST_DIR"/*.gif \
+           "$POST_DIR"/*.svg "$POST_DIR"/*.webp; do
     [ -f "$img" ] || continue
-    IMGNAME=$(basename "$img")
-    [[ "$IMGNAME" == *-thumb* ]] && continue
-    BASENAME="${IMGNAME%.webp}"
-
-    if ! find_imagemagick; then
-        echo "Error: $IMGNAME needs converting to PNG but no ImageMagick was found." >&2
-        echo "       ('convert' on Windows is usually the FAT-to-NTFS tool, not ImageMagick.)" >&2
-        exit 1
-    fi
-
-    if ! "$IM_CMD" "$img" "$TEMP_DIR/$BASENAME.png"; then
-        echo "Error: $IM_CMD failed to convert $IMGNAME" >&2
-        exit 1
-    fi
-    echo "  Converted $IMGNAME -> $BASENAME.png"
+    case "$(basename "$img")" in *-thumb*) continue ;; esac
+    cp "$img" "$TEMP_DIR/"
 done
 
 # Preprocess markdown content:
-# 1. Rewrite .webp image references to .png (for Typst compatibility)
-sed -i 's/\.webp)/.png)/g' "$TEMP_DIR/content.md"
-
-# 2. Strip the <!-- more --> separator
+# 1. Strip the <!-- more --> separator
 sed -i '/^<!-- more -->$/d' "$TEMP_DIR/content.md"
 
-# 3. Convert internal anchor links [text](#ref-...) to just plain text
+# 2. Convert internal anchor links [text](#ref-...) to just plain text
 sed -i -E 's/\[([0-9]+)\]\(#ref-[^)]+\)/\1/g' "$TEMP_DIR/content.md"
 sed -i -E 's/\[([A-Za-z0-9 ]+)\]\(#ref-[^)]+\)/\1/g' "$TEMP_DIR/content.md"
 
-# 4. Convert HTML reference paragraphs to plain text for PDF
+# 3. Convert HTML reference paragraphs to plain text for PDF
 # <p id="ref-..." class="reference">Author (Year). <em>Title</em>. <a href="...">doi:...</a>.</p>
 sed -i -E 's/<p[^>]*class="reference"[^>]*>/- /g' "$TEMP_DIR/content.md"
 sed -i -E 's/<\/p>//g' "$TEMP_DIR/content.md"
@@ -116,14 +93,9 @@ cat > "$TEMP_DIR/document.typ" << 'TYPSTEOF'
 #show: academic.with(
 TYPSTEOF
 
-# Add the title, date, and featured image (these need shell variable expansion)
-# Rewrite .webp extension to .png for Typst compatibility
-FEATURED_IMAGE_TYPST="${FEATURED_IMAGE%.webp}"
-if [ "$FEATURED_IMAGE_TYPST" != "$FEATURED_IMAGE" ]; then
-    FEATURED_IMAGE_TYPST="${FEATURED_IMAGE_TYPST}.png"
-else
-    FEATURED_IMAGE_TYPST="$FEATURED_IMAGE"
-fi
+# Add the title, date, and featured image (these need shell variable expansion).
+# Used to be rewritten to .png; Typst reads the .webp directly now.
+FEATURED_IMAGE_TYPST="$FEATURED_IMAGE"
 
 if [ -n "$FEATURED_IMAGE" ] && [ -f "$TEMP_DIR/$FEATURED_IMAGE_TYPST" ]; then
 cat >> "$TEMP_DIR/document.typ" << EOF
@@ -154,7 +126,7 @@ cat >> "$TEMP_DIR/document.typ" << 'TYPSTEOF'
 TYPSTEOF
 
 # Generate PDF with custom fonts
-FONT_PATHS="--font-path $PROJECT_DIR/fonts/inter --font-path $PROJECT_DIR/fonts/literata"
+FONT_PATHS="--font-path $PROJECT_DIR/fonts"
 typst compile $FONT_PATHS "$TEMP_DIR/document.typ" "$OUTPUT_FILE"
 
 echo "Generated: $OUTPUT_FILE"

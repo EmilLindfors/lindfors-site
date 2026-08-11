@@ -26,8 +26,9 @@ for file in $(find "$SCRIPT_DIR/content" -name "*.md" -type f); do
     fi
 done
 
-# Font paths for Typst
-FONT_PATHS="--font-path $SCRIPT_DIR/fonts/inter --font-path $SCRIPT_DIR/fonts/literata"
+# Font paths for Typst. --font-path is recursive, so one path covers inter, literata,
+# jetbrains-mono and libertinus. Populate it with scripts/fetch-fonts.sh.
+FONT_PATHS="--font-path $SCRIPT_DIR/fonts"
 
 if [ -n "$SKIP_PDFS" ]; then
     echo "Skipping CV and PDF generation (SKIP_PDFS set)"
