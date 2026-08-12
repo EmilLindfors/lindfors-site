@@ -1,0 +1,16 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Redirect</title>
+{#
+  Overrides Zola's built-in alias template, which redirects with an inline <script>.
+  That script is blocked by our script-src (see static/_headers), and a blocked script
+  does not trigger <noscript> -- so the page would just sit there showing "Click here".
+
+  A meta refresh needs no script. The tradeoff is that it drops any #fragment, which the
+  script version preserved; these aliases are pagination redirects (/blog/page/1/ ->
+  /blog/), so there is no meaningful anchor to lose.
+#}
+<meta http-equiv="refresh" content="0; url={{ url }}">
+<meta name="robots" content="noindex, follow">
+<link rel="canonical" href="{{ url }}">
+<p><a href="{{ url }}">Click here</a> to be redirected.</p>

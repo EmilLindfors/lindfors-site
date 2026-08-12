@@ -59,14 +59,8 @@
 {% block katex_js %}
 {% if page.extra.katex | default(value=false) %}
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.28/dist/katex.min.js" integrity="sha384-+W9OcrYK2/bD7BmUAk+xeFAyKp0QjyRQUCxeU31dfyTt/FrPsUgaBTLLkVf33qWt" crossorigin="anonymous"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.28/dist/contrib/auto-render.min.js" integrity="sha384-hCXGrW6PitJEwbkoStFjeJxv+fSOOQKOPbJxSfM6G5sWZjAyWhXiTIIAmQqnlLlh" crossorigin="anonymous"
-    onload="renderMathInElement(document.body, {
-        delimiters: [
-            {left: '$$', right: '$$', display: true},
-            {left: '$', right: '$', display: false}
-        ],
-        throwOnError: false
-    });"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.28/dist/contrib/auto-render.min.js" integrity="sha384-hCXGrW6PitJEwbkoStFjeJxv+fSOOQKOPbJxSfM6G5sWZjAyWhXiTIIAmQqnlLlh" crossorigin="anonymous"></script>
+<script defer src="{{ get_url(path='js/katex-init.js') }}"></script>
 {% endif %}
 {% endblock katex_js %}
 
@@ -227,7 +221,7 @@
                     </svg>
                     PDF
                 </a>
-                <button class="action-button action-cite" onclick="toggleCiteModal()" title="Cite this article">
+                <button class="action-button action-cite" data-cite-toggle title="Cite this article">
                     <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
                         <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
@@ -238,7 +232,7 @@
                     </svg>
                     Cite
                 </button>
-                <button class="action-button action-share" onclick="copyLink()" title="Copy link">
+                <button class="action-button action-share" data-copy-link title="Copy link">
                     <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
                         <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
@@ -250,8 +244,8 @@
             <!-- Citation Modal -->
             <div id="cite-modal" class="cite-modal" role="dialog" aria-label="Cite this article" style="display: none;">
                 <div class="cite-tabs">
-                    <button class="cite-tab active" onclick="showCiteFormat('bibtex')">BibTeX</button>
-                    <button class="cite-tab" onclick="showCiteFormat('apa')">APA</button>
+                    <button class="cite-tab active" data-cite-format="bibtex">BibTeX</button>
+                    <button class="cite-tab" data-cite-format="apa">APA</button>
                 </div>
                 <div id="cite-bibtex" class="cite-content">
                     <pre><code id="bibtex-code">@article{lindfors{{ page.date | date(format="%Y") }}_{{ page.slug | replace(from="-", to="_") }},
@@ -261,11 +255,11 @@
   url = { {{- config.base_url -}}/pdf/{{ page.slug }}.pdf},
   note = {Accessed: <span class="cite-date"></span>}
 }</code></pre>
-                    <button class="cite-copy" onclick="copyCitation('bibtex')">Copy BibTeX</button>
+                    <button class="cite-copy" data-cite-copy="bibtex">Copy BibTeX</button>
                 </div>
                 <div id="cite-apa" class="cite-content" style="display: none;">
                     <pre><code id="apa-code">{{ config.author }} ({{ page.date | date(format="%Y") }}). {{ page.title }}. Retrieved <span class="cite-date"></span> from {{ config.base_url }}/pdf/{{ page.slug }}.pdf</code></pre>
-                    <button class="cite-copy" onclick="copyCitation('apa')">Copy APA</button>
+                    <button class="cite-copy" data-cite-copy="apa">Copy APA</button>
                 </div>
             </div>
 
@@ -339,106 +333,5 @@
 </script>
 {% endblock jsonld %}
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Auto-populate today's date in citations
-    const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-    document.querySelectorAll('.cite-date').forEach(el => {
-        el.textContent = today;
-    });
-
-    // Scroll spy for TOC
-    const tocLinks = document.querySelectorAll('.toc-nav a');
-    if (tocLinks.length === 0) return;
-
-    const headings = [];
-    tocLinks.forEach(link => {
-        const href = link.getAttribute('href');
-        const hashIndex = href.indexOf('#');
-        if (hashIndex === -1) return;
-        const id = href.slice(hashIndex + 1);
-        const heading = document.getElementById(id);
-        if (heading) headings.push({ id, heading, link });
-    });
-
-    function updateActiveLink() {
-        const scrollPos = window.scrollY + 100;
-        let current = headings[0];
-
-        for (const item of headings) {
-            if (item.heading.offsetTop <= scrollPos) {
-                current = item;
-            }
-        }
-
-        tocLinks.forEach(link => link.classList.remove('active'));
-        if (current) current.link.classList.add('active');
-    }
-
-    // Reading progress bar
-    const progressBar = document.getElementById('reading-progress');
-    function updateProgress() {
-        const docHeight = document.documentElement.scrollHeight - window.innerHeight;
-        if (docHeight > 0) {
-            progressBar.style.width = (window.scrollY / docHeight * 100) + '%';
-        }
-    }
-
-    window.addEventListener('scroll', function() {
-        updateActiveLink();
-        updateProgress();
-    }, { passive: true });
-    updateActiveLink();
-    updateProgress();
-});
-
-var _citeModalTrigger = null;
-function toggleCiteModal() {
-    const modal = document.getElementById('cite-modal');
-    const isHidden = modal.style.display === 'none';
-    modal.style.display = isHidden ? 'block' : 'none';
-    if (isHidden) {
-        _citeModalTrigger = document.activeElement;
-        modal.querySelector('.cite-tab').focus();
-    } else if (_citeModalTrigger) {
-        _citeModalTrigger.focus();
-        _citeModalTrigger = null;
-    }
-}
-
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        const modal = document.getElementById('cite-modal');
-        if (modal && modal.style.display !== 'none') {
-            toggleCiteModal();
-        }
-    }
-});
-
-function showCiteFormat(format) {
-    document.querySelectorAll('.cite-content').forEach(el => el.style.display = 'none');
-    document.querySelectorAll('.cite-tab').forEach(el => el.classList.remove('active'));
-    document.getElementById('cite-' + format).style.display = 'block';
-    event.target.classList.add('active');
-}
-
-function copyCitation(format) {
-    const content = document.querySelector('#cite-' + format + ' pre code').textContent;
-    navigator.clipboard.writeText(content).then(() => {
-        const btn = document.querySelector('#cite-' + format + ' .cite-copy');
-        const original = btn.textContent;
-        btn.textContent = 'Copied!';
-        setTimeout(() => btn.textContent = original, 2000);
-    });
-}
-
-function copyLink() {
-    navigator.clipboard.writeText(window.location.href).then(() => {
-        const text = document.querySelector('.share-text');
-        const original = text.textContent;
-        text.textContent = 'Copied!';
-        setTimeout(() => text.textContent = original, 2000);
-    });
-}
-</script>
+<script src="{{ get_url(path='js/post.js') }}"></script>
 {% endblock %}

@@ -3,3 +3,26 @@
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data:; font-src 'self' https://cdn.jsdelivr.net; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'
+
+# Notes on the CSP above.
+#
+# script-src has no 'unsafe-inline' and no nonce. Cloudflare Pages serves this file
+# statically, so there is no per-request value to inject a nonce with, and hashes would
+# have to be recomputed on every script edit. Every inline <script> and every
+# onclick=/onload= attribute was moved into static/js/ instead, so plain 'self' works
+# and stays correct. Do not reintroduce inline handlers -- they fail silently in the
+# browser while looking fine in the build.
+#
+# cdn.jsdelivr.net is KaTeX, loaded only on pages that set extra.katex, with SRI hashes.
+# It needs script-src, style-src and font-src (katex.min.css pulls its own fonts).
+#
+# style-src keeps 'unsafe-inline'. Zola's syntax highlighter emits per-token
+# style="color:..." attributes on every code block, and style attributes cannot be
+# covered by hashes. Removing it means switching Zola to class-based highlighting and
+# shipping a theme stylesheet -- worth doing, but it changes rendered output, so it is
+# not bundled into a security header change. script-src is where XSS is actually
+# stopped; this is the honest limit of the current setup.
+#
+# connect-src 'self' covers the newsletter POST: newsletter_endpoint is /api/subscribe,
+# same origin, proxied to the Worker.

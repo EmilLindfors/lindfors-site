@@ -177,63 +177,10 @@
         </div>
     </footer>
 
-    <!-- Theme toggle script -->
-    <script>
-        (function() {
-            const toggle = document.getElementById('theme-toggle');
-            const html = document.documentElement;
+    <script src="{{ get_url(path='js/theme.js') }}"></script>
 
-            // Check for saved preference or system preference
-            const savedTheme = localStorage.getItem('theme');
-            const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
-            if (savedTheme) {
-                html.setAttribute('data-theme', savedTheme);
-            } else if (systemPrefersDark) {
-                html.setAttribute('data-theme', 'dark');
-            }
-
-            toggle.addEventListener('click', function() {
-                const currentTheme = html.getAttribute('data-theme');
-                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-                html.setAttribute('data-theme', newTheme);
-                localStorage.setItem('theme', newTheme);
-            });
-        })();
-    </script>
-
-    <!-- Newsletter form handler -->
     {% if config.extra.newsletter_endpoint %}
-    <script>
-        document.querySelectorAll('.newsletter-form').forEach(function(form) {
-            form.addEventListener('submit', function(e) {
-                e.preventDefault();
-                var email = form.querySelector('input[name="email"]').value;
-                var btn = form.querySelector('button[type="submit"]');
-                var originalText = btn.textContent;
-                btn.textContent = 'Sending...';
-                btn.disabled = true;
-
-                fetch(form.action, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email })
-                }).then(function(res) {
-                    if (res.ok) {
-                        btn.textContent = 'Subscribed!';
-                        form.querySelector('input[name="email"]').value = '';
-                        setTimeout(function() { btn.textContent = originalText; btn.disabled = false; }, 3000);
-                    } else {
-                        throw new Error('Failed');
-                    }
-                }).catch(function() {
-                    btn.textContent = 'Error - try again';
-                    btn.disabled = false;
-                    setTimeout(function() { btn.textContent = originalText; }, 3000);
-                });
-            });
-        });
-    </script>
+    <script src="{{ get_url(path='js/newsletter.js') }}"></script>
     {% endif %}
 
     <!-- KaTeX auto-render (loaded per-page via block) -->
