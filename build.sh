@@ -3,6 +3,7 @@
 # Processes citations, regenerates PDFs, and builds the Zola site.
 #
 # The heavy lifting lives in tools/site-tools (Rust); this script is orchestration.
+# This is the single definition of a build -- deploy.sh runs it and then pushes.
 # SKIP_PDFS=1 builds the site without touching the CV or post PDFs.
 
 set -e
@@ -17,17 +18,10 @@ if [ -z "$SKIP_PDFS" ]; then
     preflight_pdfs "$SCRIPT_DIR" || exit 1
 fi
 
-# Process citations in posts that reference @citekeys.
 # Needs a local Zotero library, so a failure here is a warning rather than fatal.
+# site-tools walks content/blog/ itself and honours extra.skip_citations.
 echo "Processing citations..."
-for file in "$SCRIPT_DIR"/content/blog/*/index.md; do
-    [ -f "$file" ] || continue
-    if grep -q '@[a-zA-Z]' "$file" 2>/dev/null; then
-        echo "  Processing: $(basename "$(dirname "$file")")"
-        "$SITE_TOOLS" cite process "$file" --output "$file" \
-            || echo "    Warning: citation processing failed"
-    fi
-done
+"$SITE_TOOLS" cite all || echo "  Warning: citation processing failed"
 
 if [ -n "$SKIP_PDFS" ]; then
     echo "Skipping CV and PDF generation (SKIP_PDFS set)"

@@ -85,6 +85,14 @@ fonts_present() {
 preflight_pdfs() {
     local root="$1" ok=0
 
+    # Checked here rather than only in deploy.sh: without typst, build.sh used to warn
+    # per-post and carry on, leaving stale PDFs on a site that looked freshly built.
+    if ! command -v typst >/dev/null 2>&1; then
+        echo "Error: typst is required to generate PDFs and is not on PATH." >&2
+        echo "       Install typst, or re-run with SKIP_PDFS=1." >&2
+        ok=1
+    fi
+
     if ! fonts_present "$root"; then
         echo "Error: font sources are missing from fonts/." >&2
         echo "       Typst would fall back to system fonts and every regenerated PDF" >&2
