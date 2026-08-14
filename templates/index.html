@@ -1,4 +1,14 @@
-{% extends "base.html" %} {% block content %} {% set blog =
+{% extends "base.html" %}
+
+{# The homepage is the one page whose title cannot fall back to config.title --
+   "lindfors.no" on its own gives a search engine nothing to match a query against. #}
+{% block title %}Emil Lindfors — Rust, aquaculture, and sensor systems{% endblock %}
+
+{% block description %}Emil Lindfors writes about Rust, aquaculture technology, sensor systems, and self-hosted infrastructure. PhD in technological innovation, senior software engineer in Norway.{% endblock %}
+
+{% block canonical %}{{ config.base_url | safe }}/{% endblock %}
+
+{% block content %} {% set blog =
 get_section(path="blog/_index.md") %}
 
 <!-- Hero -->

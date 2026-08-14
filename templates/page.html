@@ -11,14 +11,14 @@
 <meta property="og:description" content="{{ page.description | default(value=config.description) }}">
 <meta property="og:type" content="article">
 <meta property="og:url" content="{{ page.permalink | safe }}">
-<meta property="og:article:published_time" content="{{ page.date }}">
+<meta property="article:published_time" content="{{ page.date }}">
 {% if page.extra.changelog %}
 {% set latest_change = page.extra.changelog | first %}
-<meta property="og:article:modified_time" content="{{ latest_change.date }}">
+<meta property="article:modified_time" content="{{ latest_change.date }}">
 {% elif page.extra.updated %}
-<meta property="og:article:modified_time" content="{{ page.extra.updated }}">
+<meta property="article:modified_time" content="{{ page.extra.updated }}">
 {% endif %}
-<meta property="og:article:author" content="{{ config.author }}">
+<meta property="article:author" content="{{ config.author }}">
 {% if page.extra.og_image %}
 <meta property="og:image" content="{{ config.base_url | safe }}{{ page.extra.og_image }}">
 {% elif page.extra.featured_image %}
@@ -27,11 +27,11 @@
 <meta property="og:image" content="{{ config.base_url | safe }}{{ config.extra.og_image }}">
 {% endif %}
 {% if page.taxonomies.categories %}
-<meta property="og:article:section" content="{{ page.taxonomies.categories | first }}">
+<meta property="article:section" content="{{ page.taxonomies.categories | first }}">
 {% endif %}
 {% if page.taxonomies.tags %}
 {% for tag in page.taxonomies.tags %}
-<meta property="og:article:tag" content="{{ tag }}">
+<meta property="article:tag" content="{{ tag }}">
 {% endfor %}
 {% endif %}
 {% endblock opengraph %}

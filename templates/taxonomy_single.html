@@ -4,6 +4,26 @@
 
 {% block description %}Posts tagged with "{{ term.name }}" — {{ term.pages | length }} article{% if term.pages | length != 1 %}s{% endif %} on {{ config.title }}{% endblock %}
 
+{% block canonical %}{{ term.permalink | safe }}{% endblock %}
+
+{% block opengraph %}
+<meta property="og:title" content="{{ term.name | title }}">
+<meta property="og:description" content="Posts tagged with &quot;{{ term.name }}&quot; on {{ config.title }}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ term.permalink | safe }}">
+{% if config.extra.og_image %}
+<meta property="og:image" content="{{ config.base_url | safe }}{{ config.extra.og_image }}">
+{% endif %}
+{% endblock opengraph %}
+
+{# A term page with a single post carries no content the post itself does not.
+   Let Google follow the links but keep the thin page out of the index. #}
+{% block robots %}
+{% if term.pages | length < 2 %}
+<meta name="robots" content="noindex, follow">
+{% endif %}
+{% endblock robots %}
+
 {% block content %}
 <section class="section-header">
     <h1>{{ term.name | title }}</h1>

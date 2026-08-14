@@ -1,6 +1,10 @@
 {% extends "base.html" %}
 
-{% block title %}{{ taxonomy.name | title }} | {{ config.title }}{% endblock %}
+{% block title %}All {{ taxonomy.name }} | {{ config.title }}{% endblock %}
+
+{% block description %}Browse every {{ taxonomy.name }} used on {{ config.title }} — {{ terms | length }} in total.{% endblock %}
+
+{% block canonical %}{{ config.base_url | safe }}/{{ taxonomy.name }}/{% endblock %}
 
 {% block content %}
 <section class="section-header">

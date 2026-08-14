@@ -4,6 +4,10 @@
 
 {% block description %}{{ section.description | default(value=config.description) }}{% endblock %}
 
+{# Each pager gets its own canonical. Zola's paginator has no current-page URL, so
+   page 2+ is built from base_url; page 1 is the section permalink, not /page/1/. #}
+{% block canonical %}{% if paginator and paginator.current_index > 1 %}{{ paginator.base_url | safe }}page/{{ paginator.current_index }}/{% else %}{{ section.permalink | safe }}{% endif %}{% endblock %}
+
 {% block robots %}
 {% if paginator and paginator.current_index > 1 %}
 <meta name="robots" content="noindex, follow">

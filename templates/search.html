@@ -2,6 +2,11 @@
 
 {% block title %}Search | {{ config.title }}{% endblock %}
 
+{% block canonical %}{{ config.base_url | safe }}/search/{% endblock %}
+
+{# Results are rendered client-side, so there is nothing here for a crawler to index. #}
+{% block robots %}<meta name="robots" content="noindex, follow">{% endblock robots %}
+
 {% block content %}
 <section class="search-page">
     <div class="search-header">
