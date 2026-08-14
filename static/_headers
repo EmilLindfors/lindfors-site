@@ -5,6 +5,15 @@
   Permissions-Policy: camera=(), microphone=(), geolocation=()
   Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data:; font-src 'self' https://cdn.jsdelivr.net; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'
 
+/blog/*.md
+  Content-Type: text/markdown; charset=utf-8
+  Access-Control-Allow-Origin: *
+
+# The .md files are the negotiated representation of each post, also addressable
+# directly. Cloudflare would otherwise serve them as application/octet-stream, which
+# makes clients download rather than read them. CORS is open because these exist to
+# be fetched by other people's tools.
+
 # Notes on the CSP above.
 #
 # script-src has no 'unsafe-inline' and no nonce. Cloudflare Pages serves this file

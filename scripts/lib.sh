@@ -55,15 +55,17 @@ site_tools_bin() {
     local bin="$dir/target/release/site-tools"
     [ -f "$bin.exe" ] && bin="$bin.exe"
 
-    if [ ! -f "$bin" ]; then
-        echo "Building site-tools..." >&2
-        if ! command -v cargo >/dev/null 2>&1; then
-            echo "Error: site-tools is not built and cargo is not installed." >&2
-            return 1
-        fi
+    # Build whenever cargo is available, not just when the binary is missing. cargo
+    # no-ops in well under a second if nothing changed, and the old "only if absent"
+    # check meant a stale binary silently outlived every source edit -- a new
+    # subcommand would fail as "Unknown command" mid-build.
+    if command -v cargo >/dev/null 2>&1; then
         (cd "$dir" && cargo build --release >&2) || return 1
         bin="$dir/target/release/site-tools"
         [ -f "$bin.exe" ] && bin="$bin.exe"
+    elif [ ! -f "$bin" ]; then
+        echo "Error: site-tools is not built and cargo is not installed." >&2
+        return 1
     fi
 
     echo "$bin"

@@ -12,6 +12,11 @@
     <!-- Canonical URL -->
     <link rel="canonical" href="{% block canonical %}{{ config.base_url | safe }}{% endblock %}">
 
+    <!-- Alternate representations (see functions/blog/_middleware.js) -->
+    {% block alternates %}{% endblock %}
+    <link rel="describedby" type="text/plain" href="{{ config.base_url | safe }}/llms.txt">
+    <link rel="alternate" type="text/plain" title="llms.txt" href="{{ config.base_url | safe }}/llms.txt">
+
     <!-- Open Graph -->
     <meta property="og:site_name" content="{{ config.title }}">
     {% block opengraph %}

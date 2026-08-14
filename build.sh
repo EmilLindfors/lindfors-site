@@ -23,6 +23,12 @@ fi
 echo "Processing citations..."
 "$SITE_TOOLS" cite all || echo "  Warning: citation processing failed"
 
+# Plain-markdown representations served by content negotiation. Cheap and dependency
+# free, so it runs even when PDFs are skipped. Must happen after `cite`, so the
+# committed markdown carries the same rendered citations the HTML does.
+echo "Generating markdown representations..."
+"$SITE_TOOLS" markdown all || echo "  Warning: markdown generation failed"
+
 if [ -n "$SKIP_PDFS" ]; then
     echo "Skipping CV and PDF generation (SKIP_PDFS set)"
 else

@@ -31,6 +31,38 @@ jobs:
           args: --no-progress public/
           fail: false
 
+  test-tools:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            tools/site-tools/target
+          key: ${{ runner.os }}-tools-${{ hashFiles('tools/site-tools/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-tools-
+
+      - name: Test site-tools
+        working-directory: tools/site-tools
+        run: cargo test
+
+      # 22 or newer: the middleware is plain .js with ESM syntax, and Node only
+      # detects that without a "type": "module" from 22.7 on. A package.json in
+      # functions/ would fix it too, but that directory is Cloudflare's to interpret.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Test blog content negotiation
+        run: node --test tools/tests/middleware.test.mjs
+
   check-worker:
     runs-on: ubuntu-latest
     steps:

@@ -1,0 +1,22 @@
+# lindfors.no
+
+> Personal site of Emil Lindfors — PhD in technological innovation and senior software engineer in Norway. Writing on Rust, aquaculture technology, sensor systems, and self-hosted infrastructure.
+
+Every post is available as markdown: append `.md` to its slug, or request the post URL with `Accept: text/markdown`. Content may be used as a reference with attribution; it is not licensed for model training.
+
+## Blog posts
+
+- [Measuring what a coding agent actually costs](https://lindfors.no/blog/what-my-coding-agent-costs.md): A self-hosted OpenTelemetry stack for LLM usage: OpenObserve, otelcol, and two months of getting the numbers wrong. Span-derived metrics, cumulative counters, zero-valued token histograms, and 118,469 spans of which 118 were useful.
+- [Forking Codex to talk to any endpoint](https://lindfors.no/blog/forking-codex-for-any-endpoint.md): How we restored the Chat Completions wire API in a Codex fork, so one coding agent can drive local Ollama models, OpenRouter, Azure OpenAI with Entra auth, or any EU-hosted provider. Includes the three patches that made it usable.
+- [Which LLM are we allowed to use?](https://lindfors.no/blog/which-llm-are-we-allowed-to-use.md): We spent a while trying to decide which model our consultants could use on which client projects, ended up forking a coding agent over it, and found that most of the question was about the endpoint rather than the tool.
+- [Proper citations on a static site: Zotero, Rust, and Typst](https://lindfors.no/blog/citations-on-a-static-site.md): How I built a citation pipeline for my Zola blog that reads from Zotero, renders references in HTML, and generates PDFs with Typst. No LaTeX required.
+- [Images on a static site: tradeoffs, limits, and a 150-line Rust optimizer](https://lindfors.no/blog/images-on-a-static-site.md): Why I serve images from git instead of object storage, how many I can get away with, and the small Rust tool I built to convert and resize everything to WebP.
+- [I replaced Mailchimp with a Rust Worker and a self-hosted mail server](https://lindfors.no/blog/self-hosted-newsletter.md): How I built a complete newsletter system with ~700 lines of Rust, a Cloudflare Worker, and Stalwart mail server. No database, no third-party email service, near-zero cost.
+- [I use Typst to generate PDFs of my blog posts and my CV](https://lindfors.no/blog/typst-for-blogging.md): How I replaced LaTeX with Typst to auto-generate downloadable PDFs for every blog post and keep my CV version-controlled. Markdown in, beautiful PDFs out.
+- [Why I built my blog with Zola and kept everything in one repo](https://lindfors.no/blog/building-a-personal-blog-with-zola.md): The architecture behind a personal site with self-hosted fonts, dual themes, client-side search, PDF generation, citations, and a newsletter -- all from a single git repo with zero JavaScript frameworks.
+
+## Pages
+
+- [About](https://lindfors.no/about/): Background, research, and contact details.
+- [Blog index](https://lindfors.no/blog/): All posts, newest first.
+- [Atom feed](https://lindfors.no/atom.xml): Full-text feed of new posts.

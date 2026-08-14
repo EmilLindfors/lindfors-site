@@ -6,6 +6,13 @@
 
 {% block canonical %}{{ page.permalink | safe }}{% endblock %}
 
+{# Only blog posts get a generated .md; other pages using this template do not. #}
+{% block alternates %}
+{% if page.components | length > 1 and page.components[0] == "blog" %}
+<link rel="alternate" type="text/markdown" href="{{ config.base_url | safe }}/blog/{{ page.slug }}.md">
+{% endif %}
+{% endblock alternates %}
+
 {% block opengraph %}
 <meta property="og:title" content="{{ page.title }}">
 <meta property="og:description" content="{{ page.description | default(value=config.description) }}">
