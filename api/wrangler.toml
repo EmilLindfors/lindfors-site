@@ -19,11 +19,17 @@ command = "cargo install worker-build --version 0.8.5 --locked && worker-build -
 
 [vars]
 SITE_URL = "https://lindfors.no"
+# The management API (used to add/remove list members) is served on 8080, which is
+# firewalled off. A Worker egresses from Cloudflare's network, so it cannot reach it
+# and every subscribe returns "Upstream error (404)". This host/port needs to become
+# reachable from Cloudflare before subscribe works again.
 STALWART_API_URL = "https://mail.lindfors.no"  # Adjust to your Stalwart instance
 STALWART_LIST_ID = "news"                 # The mailing list principal name
 
-# JMAP config for sending newsletters
-JMAP_API_URL = "https://mail.lindfors.no:10443"
+# JMAP config for sending newsletters. Port 10443 refuses connections; JMAP is on
+# 443, where an unauthenticated POST to /jmap/ answers 401. The code appends
+# "/jmap/" to this value.
+JMAP_API_URL = "https://mail.lindfors.no"
 JMAP_ACCOUNT_ID = "c2"
 JMAP_IDENTITY_ID = "b"
 
