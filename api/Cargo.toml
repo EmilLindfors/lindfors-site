@@ -7,7 +7,7 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-worker = "0.7"
+worker = "0.8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
@@ -15,5 +15,10 @@ ammonia = "4"
 
 [profile.release]
 lto = true
-strip = true
+# Not `strip = true`. That is `strip = "symbols"`, which drops the `target_features`
+# custom section, and wasm-bindgen reads that section to decide whether reference-types
+# are available. Without it, worker-build 0.8 fails at "externref table required for
+# catch wrappers". wasm-opt strips the name section afterwards anyway, so the final
+# artifact is the same size either way (1,563,796 vs 1,563,938 bytes).
+strip = "debuginfo"
 codegen-units = 1

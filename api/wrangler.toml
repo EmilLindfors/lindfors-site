@@ -3,7 +3,19 @@ main = "build/worker/shim.mjs"
 compatibility_date = "2024-12-01"
 
 [build]
-command = "cargo install worker-build 2>/dev/null; worker-build --release"
+# worker-build must be pinned to the worker crate's minor series. Unpinned, this
+# installed whatever was newest, and the day worker-build 0.8.x shipped it began
+# refusing to build against worker 0.7 ("expected at least worker@0.8.5") -- which
+# broke `wrangler deploy` entirely, locally and in CI, with no change on our side.
+# Two Windows-portability constraints, because wrangler runs this through cmd.exe
+# there and through sh on Cloudflare's Linux builders:
+#   - `&&`, not `;`. cmd.exe does not treat `;` as a separator, so cargo receives
+#     `--locked;` as an argument and errors out.
+#   - an exact version, not `^0.8`. `^` is cmd.exe's escape character, so `^0.8`
+#     reaches cargo as `0.8`, which it rejects as an incomplete semver.
+# cargo install exits 0 when that version is already present, so this is not a
+# re-install on every build.
+command = "cargo install worker-build --version 0.8.5 --locked && worker-build --release"
 
 [vars]
 SITE_URL = "https://lindfors.no"

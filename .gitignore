@@ -8,6 +8,9 @@ fonts/
 # Rust build artifacts
 target/
 
+# wrangler dev local state (miniflare cache, D1/KV shims)
+.wrangler/
+
 # Generated PDFs are committed (built locally before deploy)
 
 # Symlinks
