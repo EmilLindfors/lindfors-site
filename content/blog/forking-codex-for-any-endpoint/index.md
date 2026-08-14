@@ -8,6 +8,7 @@ tags = ["rust", "llm", "codex", "openrouter", "ollama", "tooling"]
 categories = ["programming"]
 
 [extra]
+featured_image = "hero.webp"
 toc = true
 +++
 

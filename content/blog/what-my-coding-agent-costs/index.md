@@ -8,6 +8,7 @@ tags = ["llm", "opentelemetry", "observability", "codex", "openrouter"]
 categories = ["programming"]
 
 [extra]
+featured_image = "hero.webp"
 toc = true
 +++
 
