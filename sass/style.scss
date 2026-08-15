@@ -628,10 +628,10 @@ pre {
         line-height: 1.5;
     }
 
-    // Cards without images keep the old padding on the link
-    &:not(.has-image) a {
-        padding: var(--spacing-lg);
-    }
+    // No padding on the link: .featured-text carries it and is present whether or
+    // not the card has an image. Setting both stacked 32px on 32px, which only
+    // showed once an image-less post reached the full-width lead slot and left it
+    // 154px of padding around 118px of text.
 }
 
 .featured-image {
