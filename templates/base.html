@@ -93,7 +93,7 @@
     </style>
 
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="{{ get_url(path='style.css') }}">
+    <link rel="stylesheet" href="{{ get_url(path='style.css', cachebust=true) }}">
 
     <!-- KaTeX CSS (loaded per-page via block) -->
     {% block katex_css %}{% endblock %}
@@ -182,10 +182,10 @@
         </div>
     </footer>
 
-    <script src="{{ get_url(path='js/theme.js') }}"></script>
+    <script src="{{ get_url(path='js/theme.js', cachebust=true) }}"></script>
 
     {% if config.extra.newsletter_endpoint %}
-    <script src="{{ get_url(path='js/newsletter.js') }}"></script>
+    <script src="{{ get_url(path='js/newsletter.js', cachebust=true) }}"></script>
     {% endif %}
 
     <!-- KaTeX auto-render (loaded per-page via block) -->

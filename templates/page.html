@@ -67,7 +67,7 @@
 {% if page.extra.katex | default(value=false) %}
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.28/dist/katex.min.js" integrity="sha384-+W9OcrYK2/bD7BmUAk+xeFAyKp0QjyRQUCxeU31dfyTt/FrPsUgaBTLLkVf33qWt" crossorigin="anonymous"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.28/dist/contrib/auto-render.min.js" integrity="sha384-hCXGrW6PitJEwbkoStFjeJxv+fSOOQKOPbJxSfM6G5sWZjAyWhXiTIIAmQqnlLlh" crossorigin="anonymous"></script>
-<script defer src="{{ get_url(path='js/katex-init.js') }}"></script>
+<script defer src="{{ get_url(path='js/katex-init.js', cachebust=true) }}"></script>
 {% endif %}
 {% endblock katex_js %}
 
@@ -340,5 +340,5 @@
 </script>
 {% endblock jsonld %}
 
-<script src="{{ get_url(path='js/post.js') }}"></script>
+<script src="{{ get_url(path='js/post.js', cachebust=true) }}"></script>
 {% endblock %}
