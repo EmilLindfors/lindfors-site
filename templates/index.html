@@ -15,15 +15,15 @@ get_section(path="blog/_index.md") %}
 <section class="hero">
     <h1>Hi, I'm Emil Lindfors</h1>
     <p class="hero-subtitle">
-        I write about aquaculture, Rust programming, sensors, and the
-        intersection of technology and nature. PhD in technological innovation
-        and senior software engineer based in Norway.
+        Aquaculture, Rust, sensors, and the intersection of technology and
+        nature. PhD in technological innovation and senior software engineer in
+        Norway.
     </p>
     {% if config.extra.newsletter_endpoint %}
     {{<newsletter.form endpoint={config.extra.newsletter_endpoint} variant="hero" />}}
     <p class="hero-rss">
-        Or follow via <a href="{{ get_url(path='atom.xml') }}">RSS</a>. ..or
-        just remember to check back I guess? Or don't. no pressure!
+        Or follow via <a href="{{ get_url(path='atom.xml') }}">RSS</a>. Or just
+        check back whenever. No pressure.
     </p>
     {% endif %}
 </section>
@@ -34,9 +34,9 @@ get_section(path="blog/_index.md") %}
 <section class="featured-posts">
     <h2>Featured</h2>
     <div class="featured-grid">
-        {% for page in featured[:2] %}
+        {% for page in featured[:3] %}
         <article
-            class="featured-card{% if page.extra.featured_image %} has-image{% endif %}"
+            class="featured-card{% if page.extra.featured_image %} has-image{% endif %}{% if loop.first %} featured-card--lead{% endif %}"
         >
             <a href="{{ page.permalink }}">
                 {% if page.extra.featured_image %} {% set thumb =

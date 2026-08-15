@@ -370,23 +370,26 @@ pre {
 // Hero
 // =============================================================================
 
+// Kept deliberately short: this sits above the featured posts, and every pixel
+// here is a pixel of article the visitor has to scroll past. Was spacing-xl on
+// both, which spent 8rem of vertical space before the first headline.
 .hero {
-    margin-bottom: var(--spacing-xl);
-    padding-bottom: var(--spacing-xl);
+    margin-bottom: var(--spacing-lg);
+    padding-bottom: var(--spacing-lg);
     border-bottom: 1px solid var(--color-border);
 
     h1 {
         margin-top: 0;
-        margin-bottom: var(--spacing-sm);
-        font-size: 2rem;
+        margin-bottom: var(--spacing-xs);
+        font-size: 1.75rem;
     }
 }
 
 .hero-subtitle {
     color: var(--color-text-secondary);
-    font-size: 1.125rem;
-    line-height: 1.6;
-    margin-bottom: var(--spacing-lg);
+    font-size: 1rem;
+    line-height: 1.5;
+    margin-bottom: var(--spacing-md);
     max-width: 36rem;
 }
 
@@ -552,6 +555,38 @@ pre {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: var(--spacing-md);
+}
+
+// The first featured post leads across both columns; the other two sit beside
+// each other underneath.
+.featured-card--lead {
+    grid-column: 1 / -1;
+
+    h3 {
+        font-size: 1.5rem;
+    }
+
+    // Not every featured post has a hero image, so the lead has to read well
+    // both ways. With one, image and text split the width so the card does not
+    // become tall enough to push the rest of the page down -- which is the thing
+    // a full-width lead is most at risk of doing.
+    &.has-image a {
+        display: grid;
+        grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+        align-items: stretch;
+        gap: 0;
+    }
+
+    &.has-image .featured-image {
+        height: 100%;
+        min-height: 200px;
+    }
+
+    // Without one it is a wider text block, so give the description room rather
+    // than letting it run the full 1024px measure.
+    &:not(.has-image) p {
+        max-width: 44rem;
+    }
 }
 
 .featured-card {
@@ -1451,6 +1486,23 @@ pre {
 @media (max-width: 768px) {
     .featured-grid {
         grid-template-columns: 1fr;
+    }
+
+    // Once the grid is one column there is no width to split, so the lead card
+    // goes back to image-above-text like the other two.
+    .featured-card--lead {
+        &.has-image a {
+            grid-template-columns: 1fr;
+        }
+
+        &.has-image .featured-image {
+            height: 200px;
+            min-height: 0;
+        }
+
+        h3 {
+            font-size: 1.25rem;
+        }
     }
 
     .post-layout {
