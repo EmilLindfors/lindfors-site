@@ -1725,8 +1725,33 @@ pre {
         padding: var(--spacing-sm) var(--spacing-md);
     }
 
+    // The 768px rules park the action buttons in their own grid column, sized
+    // `auto`. That width is intrinsic (~196px for PDF/Cite/Share) and does not
+    // shrink, so every pixel lost below 768px comes out of the meta column: 296px
+    // at a 500px viewport down to 116px at 320px, at which point each label/value
+    // pair wraps to two lines. Stack the two instead of letting them compete.
+    .sidebar-sticky {
+        grid-template-columns: 1fr;
+    }
+
+    .sidebar-actions {
+        grid-column: 1;
+        grid-row: auto;
+    }
+
+    // Stays the row/wrap from the 768px block, now across the full width.
     .sidebar-meta {
-        flex-direction: column;
+        grid-column: 1;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: var(--spacing-xs) var(--spacing-md);
+    }
+
+    .meta-item {
+        // space-between reads well only when the item spans the whole sidebar.
+        // In a wrapped row it pushes the label off the value by whatever slack
+        // the line happens to have, so pair them with a fixed gap instead.
+        justify-content: flex-start;
         gap: var(--spacing-xs);
     }
 
