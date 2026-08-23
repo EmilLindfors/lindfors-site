@@ -8,6 +8,7 @@ tags = ["ai", "llm", "governance", "gdpr", "consulting"]
 categories = ["business"]
 
 [extra]
+skip_audio = true
 featured = true
 toc = true
 +++

@@ -1,0 +1,18 @@
+# Pronunciation overrides for the spoken scripts, applied by `site-tools speech`.
+#
+# Whole-word replacements only: "nginx" is rewritten, "nginxfoo" is not. Applied after
+# every other transformation, so the right-hand side is exactly what gets synthesised.
+#
+# Add entries after listening to a post, not before. S2.1 Pro reads most technical
+# vocabulary correctly, and a wrong guess here is worse than no entry: "Typst" appears
+# 39 times across the archive, so getting it wrong is a re-synthesis of five posts.
+
+[say]
+nginx = "engine ex"
+
+# Candidates to check on the first listen, then enable or delete:
+# otelcol = "oh-tel-col"
+# elasticlunr = "elastic lunr"
+# KaTeX = "kay-tech"
+# Zotero = "zoh-terro"
+# Typst = "typest"

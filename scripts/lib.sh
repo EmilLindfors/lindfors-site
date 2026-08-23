@@ -82,6 +82,33 @@ fonts_present() {
     return 0
 }
 
+# True when audio generation can run: ffmpeg on PATH and a reachable TTS endpoint.
+#
+# Both are warnings rather than errors. Audio is only re-synthesised when a script
+# changes, so a build with the GPU asleep ships the committed MP3s unchanged -- that is
+# the normal case, not a failure. Set SKIP_AUDIO=1 to skip the check entirely.
+audio_ready() {
+    local root="$1" base
+
+    if ! command -v ffmpeg >/dev/null 2>&1; then
+        echo "  Skipping audio: ffmpeg is not on PATH." >&2
+        return 1
+    fi
+
+    base="$TTS_BASE_URL"
+    if [ -z "$base" ] && [ -f "$root/.env" ]; then
+        base="$(grep '^TTS_BASE_URL=' "$root/.env" | head -1 | cut -d= -f2-)"
+    fi
+    base="${base:-https://api.fish.audio}"
+
+    if ! curl -s -o /dev/null -m 5 "$base" 2>/dev/null; then
+        echo "  Skipping audio: $base is unreachable." >&2
+        return 1
+    fi
+
+    return 0
+}
+
 # Fail before generating PDFs we would otherwise commit in a degraded state.
 # Set SKIP_PDFS=1 to build the site without touching PDFs at all.
 preflight_pdfs() {

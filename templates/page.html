@@ -88,6 +88,36 @@
             {% endif %}
         </header>
 
+        {# Audio version. The sidecar is written by `site-tools audio`, so its presence
+           is what says a post has been synthesised -- a post that opted out with
+           extra.skip_audio, or one synthesised after this build, simply has no file. #}
+        {% set audio = load_data(path="static/audio/" ~ page.slug ~ ".json", required=false) %}
+        {% if audio %}
+        <section class="post-audio" aria-labelledby="audio-heading">
+            <div class="audio-head">
+                <svg class="audio-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+                    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+                </svg>
+                <h2 id="audio-heading" class="audio-label">Listen to this article</h2>
+                <span class="audio-duration">{{ audio.duration }}</span>
+            </div>
+
+            <audio class="audio-player" controls preload="none" src="/audio/{{ page.slug }}.mp3">
+                <a href="/audio/{{ page.slug }}.mp3">Download the audio version</a>
+            </audio>
+
+            <div class="audio-rates" role="group" aria-label="Playback speed">
+                <button type="button" class="audio-rate is-active" data-rate="1" aria-pressed="true">1&times;</button>
+                <button type="button" class="audio-rate" data-rate="1.25" aria-pressed="false">1.25&times;</button>
+                <button type="button" class="audio-rate" data-rate="1.5" aria-pressed="false">1.5&times;</button>
+                <button type="button" class="audio-rate" data-rate="2" aria-pressed="false">2&times;</button>
+            </div>
+
+            <p class="audio-note">Synthetic narration. Code blocks, tables and the reference list are summarised rather than read out.</p>
+        </section>
+        {% endif %}
+
         <div class="post-content">
             {{ page.content | safe }}
         </div>

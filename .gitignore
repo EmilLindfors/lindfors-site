@@ -11,7 +11,10 @@ target/
 # wrangler dev local state (miniflare cache, D1/KV shims)
 .wrangler/
 
-# Generated PDFs are committed (built locally before deploy)
+# Generated PDFs and audio are committed (built locally before deploy)
+
+# Per-block TTS output, keyed by content hash. Rebuildable, and large.
+.audio-cache/
 
 # Symlinks
 zotero-cite

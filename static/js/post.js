@@ -16,6 +16,7 @@
 
         initCiteModal();
         initTocAndProgress();
+        initAudioSpeed();
     });
 
     function initTocAndProgress() {
@@ -60,6 +61,52 @@
 
         updateActiveLink();
         updateProgress();
+    }
+
+    // Playback speed for the audio version. The player itself is native <audio
+    // controls>, so everything except these buttons works with JavaScript disabled.
+    // The choice is remembered: someone who listens at 1.5x wants that on every post.
+    function initAudioSpeed() {
+        const player = document.querySelector('.audio-player');
+        const buttons = document.querySelectorAll('.audio-rate');
+        if (!player || buttons.length === 0) return;
+
+        function apply(rate) {
+            player.playbackRate = rate;
+            // load() resets playbackRate to defaultPlaybackRate, and preload="none"
+            // means the resource is fetched long after this runs. Setting both keeps
+            // a restored 1.5x from silently reverting on the first play.
+            player.defaultPlaybackRate = rate;
+            buttons.forEach(function (button) {
+                const active = Number(button.dataset.rate) === rate;
+                button.classList.toggle('is-active', active);
+                button.setAttribute('aria-pressed', String(active));
+            });
+        }
+
+        let stored = null;
+        try {
+            stored = Number(localStorage.getItem('audio-rate'));
+        } catch (e) {
+            // Private mode, or storage blocked. The default rate is fine.
+        }
+
+        const rates = Array.from(buttons, function (b) { return Number(b.dataset.rate); });
+        if (stored && rates.indexOf(stored) !== -1) {
+            apply(stored);
+        }
+
+        buttons.forEach(function (button) {
+            button.addEventListener('click', function () {
+                const rate = Number(button.dataset.rate);
+                apply(rate);
+                try {
+                    localStorage.setItem('audio-rate', String(rate));
+                } catch (e) {
+                    // Not worth surfacing: the rate still applies to this page.
+                }
+            });
+        });
     }
 
     function initCiteModal() {

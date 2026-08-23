@@ -6,6 +6,7 @@ date = 2026-02-11
 tags = ["zola", "web", "rust", "self-hosting"]
 categories = ["programming"]
 [extra]
+skip_audio = true
 featured = true
 toc = true
 featured_image = "hero.webp"

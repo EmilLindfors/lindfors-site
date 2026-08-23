@@ -8,6 +8,7 @@ tags = ["typst", "rust", "pdf", "writing"]
 categories = ["programming"]
 
 [extra]
+skip_audio = true
 toc = true
 changelog = [
     { date = 2026-08-11, description = "PDF generation moved from shell scripts to the site-tools Rust CLI." },

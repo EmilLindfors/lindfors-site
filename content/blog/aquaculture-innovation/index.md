@@ -2,7 +2,7 @@
 title = "Innovation Narratives in Norwegian Aquaculture"
 description = "Exploring the diverse narratives surrounding sustainability and innovation in the Norwegian salmon farming industry."
 date = 2024-01-20
-draft = false
+draft = true
 [taxonomies]
 tags = ["aquaculture", "innovation", "sustainability", "norway"]
 categories = ["research"]

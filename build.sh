@@ -5,6 +5,8 @@
 # The heavy lifting lives in tools/site-tools (Rust); this script is orchestration.
 # This is the single definition of a build -- deploy.sh runs it and then pushes.
 # SKIP_PDFS=1 builds the site without touching the CV or post PDFs.
+# SKIP_AUDIO=1 builds without synthesising audio (it is skipped anyway when the TTS
+# endpoint is unreachable or nothing changed).
 
 set -e
 
@@ -28,6 +30,19 @@ echo "Processing citations..."
 # committed markdown carries the same rendered citations the HTML does.
 echo "Generating markdown representations..."
 "$SITE_TOOLS" markdown all || echo "  Warning: markdown generation failed"
+
+# Spoken scripts for the audio versions. Pure text derivation, no network, so it runs
+# on every build -- the script is what gets reviewed when the audio sounds wrong. Must
+# happen after `cite` for the same reason `markdown` does.
+echo "Generating speech scripts..."
+"$SITE_TOOLS" speech all || echo "  Warning: speech script generation failed"
+
+# Synthesis is gated on the script hash, so an unchanged post costs nothing and needs
+# no endpoint. SKIP_AUDIO=1 skips it outright.
+if [ -z "$SKIP_AUDIO" ] && audio_ready "$SCRIPT_DIR"; then
+    echo "Generating audio..."
+    "$SITE_TOOLS" audio all || echo "  Warning: audio generation failed"
+fi
 
 if [ -n "$SKIP_PDFS" ]; then
     echo "Skipping CV and PDF generation (SKIP_PDFS set)"

@@ -7,6 +7,7 @@ draft = false
 tags = ["zola", "web", "rust"]
 categories = ["programming"]
 [extra]
+skip_audio = true
 featured = true
 featured_image = "hero.webp"
 toc = true

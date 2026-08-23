@@ -8,6 +8,7 @@ tags = ["rust", "zotero", "typst", "writing"]
 categories = ["programming"]
 
 [extra]
+skip_audio = true
 toc = true
 # This post teaches the @citekey syntax, so its code blocks are full of them. The
 # processor is not code-block aware and would rewrite the examples into rendered

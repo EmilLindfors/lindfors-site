@@ -8,6 +8,7 @@ tags = ["rust", "self-hosting", "email", "cloudflare"]
 categories = ["programming"]
 
 [extra]
+skip_audio = true
 toc = true
 changelog = [
     { date = 2026-08-11, description = "Newsletter commands moved from shell scripts to the site-tools Rust CLI." },
