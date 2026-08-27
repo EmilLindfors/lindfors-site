@@ -87,6 +87,14 @@ jobs:
         working-directory: api
         run: cargo check --target wasm32-unknown-unknown
 
+      # Host target, not wasm: these cover the pure logic -- confirmation token
+      # signing and expiry, email validation, HTML escaping -- which is why the crate
+      # is built as `rlib` alongside `cdylib`. Anything touching the JS bindings
+      # cannot run here and is not tested.
+      - name: Test Worker
+        working-directory: api
+        run: cargo test
+
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
 

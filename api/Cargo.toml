@@ -4,7 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
-crate-type = ["cdylib"]
+# `rlib` alongside `cdylib` so `cargo test` can link the crate for the host target
+# and exercise the pure logic -- token signing, expiry, link round-tripping, email
+# validation -- without a wasm runtime. worker-build only looks for the cdylib, so
+# the extra output changes nothing about the deployed artifact.
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 worker = "0.8"
@@ -14,6 +18,15 @@ pulldown-cmark = { version = "0.12", default-features = false, features = ["html
 ammonia = "4"
 # Basic auth for JMAP is assembled in the Worker; see basic_credential().
 base64 = "0.22"
+# Double opt-in confirmation tokens. HMAC-SHA256 over (expiry, address) is what
+# lets the pending-subscriber state live in the link instead of in a database --
+# see the "Confirmation tokens" section in lib.rs.
+hmac = "0.12"
+sha2 = "0.10"
+# Percent-encoding for the confirmation link's query string. Already in the lock
+# as a transitive dependency of `url`, so this adds nothing to the build; it is
+# named directly because `worker` re-exports only `Url`, not this.
+form_urlencoded = "1"
 
 [profile.release]
 lto = true

@@ -2,6 +2,19 @@ name = "newsletter-api"
 main = "build/worker/shim.mjs"
 compatibility_date = "2024-12-01"
 
+# Route /api/* to this worker on the main domain.
+#
+# This has to sit above the first `[...]` header. TOML assigns a bare key to the
+# table most recently opened, so while this lived at the end of the file it was not
+# a top-level `routes` at all -- it was a variable named `routes` inside `[vars]`,
+# and wrangler never said so because `[vars]` accepts any key. The live route came
+# from the dashboard the whole time and this block was decorative. Adding
+# `[[ratelimits]]` is what exposed it: those tables have a fixed schema, so the same
+# misplaced key finally produced "Unexpected fields found in ratelimits[2]".
+routes = [
+    { pattern = "lindfors.no/api/*", zone_name = "lindfors.no" }
+]
+
 [build]
 # worker-build must be pinned to the worker crate's minor series. Unpinned, this
 # installed whatever was newest, and the day worker-build 0.8.x shipped it began
@@ -47,13 +60,56 @@ JMAP_LIST_USER = "emil@lindfors.no"
 
 # Set these as secrets (npx wrangler secret put <NAME>):
 # ADMIN_KEY=
+# CONFIRM_SECRET=      (openssl rand -hex 32 -- the HMAC key for double opt-in
+#                       confirmation links. Rotating it invalidates every link that
+#                       has not been clicked yet, which is at most 48 hours' worth
+#                       and is the entire revocation story; there is no issued-token
+#                       list to walk.)
 # JMAP_CREDENTIALS=    (base64 of postmaster@lindfors.no:PASSWORD -- sending only,
 #                       still pre-encoded; not migrated because that secret may
 #                       currently be correct and re-encoding it would break sending)
 # JMAP_LIST_PASSWORD=  (plain password or app password for JMAP_LIST_USER -- needs
 #                       JMAP access plus sysMailingListUpdate + sysMailingListGet)
 
-# Route /api/* to this worker on the main domain
-routes = [
-    { pattern = "lindfors.no/api/*", zone_name = "lindfors.no" }
-]
+# ---------------------------------------------------------------------------
+# Rate limiting
+# ---------------------------------------------------------------------------
+#
+# Part of double opt-in, not a follow-up to it. /api/subscribe used to add a row;
+# it now makes this server send mail to whatever address a stranger types, so
+# unrated it is a mail bomb anyone can aim at anyone -- from a self-hosted sender
+# whose reputation is the only thing making delivery work at all.
+#
+# These are Workers rate limiting bindings, which run at the edge and need no WAF
+# or paid plan. `period` accepts only 10 or 60, so what they bound is burst rate,
+# not daily volume: a caller pacing itself under the limit still trickles through.
+# That ceiling is the mechanism's, not a misconfiguration. Sustained-abuse limits
+# want a WAF custom rule, which lives in the dashboard rather than here.
+#
+# The Worker fails closed if a binding is missing -- see rate_limit_allows() -- so
+# deleting one of these breaks signup loudly instead of quietly unprotecting it.
+# namespace_id is an arbitrary but stable per-binding integer; changing one resets
+# its counters.
+
+# One source spraying confirmation mail at many addresses.
+[[ratelimits]]
+name = "SUBSCRIBE_IP_LIMITER"
+namespace_id = "1001"
+simple = { limit = 5, period = 60 }
+
+# Many sources converging on one inbox. Keyed on the address, so it holds however
+# the requests are distributed. Tighter than the IP limit: a real person submits
+# the form once, and twice only if they think it failed.
+[[ratelimits]]
+name = "SUBSCRIBE_EMAIL_LIMITER"
+namespace_id = "1002"
+simple = { limit = 2, period = 60 }
+
+# /api/unsubscribe and /api/confirm, keyed per route and IP. Looser, because these
+# do not send mail -- the point is bounding JMAP calls, not preventing abuse of an
+# inbox.
+[[ratelimits]]
+name = "API_IP_LIMITER"
+namespace_id = "1003"
+simple = { limit = 15, period = 60 }
+

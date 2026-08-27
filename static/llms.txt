@@ -6,6 +6,7 @@ Every post is available as markdown: append `.md` to its slug, or request the po
 
 ## Blog posts
 
+- [My server said 1672, my CLI said 1585](https://lindfors.no/blog/two-defensible-answers.md): A month building chat-with-your-data on Wren's semantic layer: the bug that started it, a field test against a build I'd already replaced, and why I think the interesting change is who gets to ask the second question.
 - [Audio on a static site: build-time TTS and the script it reads from](https://lindfors.no/blog/audio-on-a-static-site.md): This post has an audio version, generated at build time with Fish Audio S2.1 Pro and committed next to the PDFs. Picking the model took an afternoon. Deriving something worth listening to from markdown full of code fences took the rest of it.
 - [Measuring what a coding agent actually costs](https://lindfors.no/blog/what-my-coding-agent-costs.md): A self-hosted OpenTelemetry stack for LLM usage: OpenObserve, otelcol, and two months of getting the numbers wrong. Span-derived metrics, cumulative counters, zero-valued token histograms, and 118,469 spans of which 118 were useful.
 - [Forking Codex to talk to any endpoint](https://lindfors.no/blog/forking-codex-for-any-endpoint.md): How we restored the Chat Completions wire API in a Codex fork, so one coding agent can drive local Ollama models, OpenRouter, Azure OpenAI with Entra auth, or any EU-hosted provider. Includes the three patches that made it usable.

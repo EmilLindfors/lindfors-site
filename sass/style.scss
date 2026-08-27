@@ -453,6 +453,27 @@ pre {
     }
 }
 
+// Signup status, inserted after the form by newsletter.js. Lives outside
+// .newsletter-form because that is a flex row and a message belongs under it, not
+// as another column. Sized to the form so the two read as one block.
+.newsletter-msg {
+    max-width: 28rem;
+    margin: var(--spacing-sm) 0 0 0;
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    line-height: 1.5;
+
+    // --color-accent and --color-link are the same value in both themes, so the two
+    // states have to come from different variables to be distinguishable at all.
+    &--ok {
+        color: var(--color-accent-secondary);
+    }
+
+    &--err {
+        color: var(--color-link);
+    }
+}
+
 // Post-end newsletter CTA
 .post-newsletter {
     margin-top: var(--spacing-xl);
