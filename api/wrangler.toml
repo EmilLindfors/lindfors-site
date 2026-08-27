@@ -19,24 +19,39 @@ command = "cargo install worker-build --version 0.8.5 --locked && worker-build -
 
 [vars]
 SITE_URL = "https://lindfors.no"
-# The management API (used to add/remove list members) is served on 8080, which is
-# firewalled off. A Worker egresses from Cloudflare's network, so it cannot reach it
-# and every subscribe returns "Upstream error (404)". This host/port needs to become
-# reachable from Cloudflare before subscribe works again.
-STALWART_API_URL = "https://mail.lindfors.no"  # Adjust to your Stalwart instance
-STALWART_LIST_ID = "news"                 # The mailing list principal name
-
-# JMAP config for sending newsletters. Port 10443 refuses connections; JMAP is on
-# 443, where an unauthenticated POST to /jmap/ answers 401. The code appends
-# "/jmap/" to this value.
+# Everything now goes through JMAP. Stalwart 0.16 deleted the REST management API,
+# so STALWART_API_URL / STALWART_API_KEY are gone: /api/principal/{id} 404s on both
+# 443 and 8080 -- confirmed from localhost, so it was never the firewall. The code
+# appends "/jmap/" to JMAP_API_URL.
 JMAP_API_URL = "https://mail.lindfors.no"
+
+# Sending: postmaster's account and identity, used by /api/send-newsletter.
 JMAP_ACCOUNT_ID = "c2"
 JMAP_IDENTITY_ID = "b"
 
+# Subscriber list. This keys the `update` map in x:MailingList/set, so it must be the
+# object *id*, not the name -- "news" is the name (address news@lindfors.no, alias
+# newsletter@), and its id is "e". Confirmed against the live server; re-resolve with
+# x:MailingList/get if the list is ever recreated, since ids are assigned on create.
+STALWART_LIST_ID = "e"
+
+# Not needed: x:MailingList/get and /set both succeed without an accountId, and echo
+# back "bz" in the response. The code omits the key entirely while this is unset.
+# STALWART_LIST_ACCOUNT_ID = "bz"
+
+# The login for the list credential. Its password is the JMAP_LIST_PASSWORD secret,
+# and the Worker base64s the pair itself -- storing a pre-encoded blob is what broke
+# subscribe, since a bare password in the secret reads as a plain 401 and secrets
+# cannot be read back to tell the two apart.
+JMAP_LIST_USER = "emil@lindfors.no"
+
 # Set these as secrets (npx wrangler secret put <NAME>):
-# STALWART_API_KEY=
 # ADMIN_KEY=
-# JMAP_CREDENTIALS=  (base64 of postmaster@lindfors.no:PASSWORD)
+# JMAP_CREDENTIALS=    (base64 of postmaster@lindfors.no:PASSWORD -- sending only,
+#                       still pre-encoded; not migrated because that secret may
+#                       currently be correct and re-encoding it would break sending)
+# JMAP_LIST_PASSWORD=  (plain password or app password for JMAP_LIST_USER -- needs
+#                       JMAP access plus sysMailingListUpdate + sysMailingListGet)
 
 # Route /api/* to this worker on the main domain
 routes = [

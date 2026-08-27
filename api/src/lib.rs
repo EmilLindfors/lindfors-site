@@ -23,28 +23,6 @@ struct ApiResponse {
     error: Option<String>,
 }
 
-/// Stalwart PATCH body: atomic add/remove on a principal field.
-#[derive(Serialize)]
-struct StalwartPatchOp {
-    action: &'static str,
-    field: &'static str,
-    value: String,
-}
-
-/// Stalwart principal (partial — only the fields we read).
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct StalwartPrincipal {
-    #[serde(default)]
-    external_members: Vec<String>,
-}
-
-/// Wrapper for Stalwart GET /api/principal/{id} response.
-#[derive(Deserialize)]
-struct StalwartGetResponse {
-    data: StalwartPrincipal,
-}
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -92,57 +70,272 @@ fn is_valid_email(email: &str) -> bool {
         && email.len() <= 254
 }
 
-/// Call the Stalwart Management API.
-async fn stalwart_patch(
-    api_url: &str,
-    api_key: &str,
-    list_id: &str,
-    ops: &[StalwartPatchOp],
-) -> Result<u16> {
-    let url = format!("{}/api/principal/{}", api_url, list_id);
-    let body = serde_json::to_string(ops).map_err(|e| Error::RustError(e.to_string()))?;
+// ---------------------------------------------------------------------------
+// Stalwart JMAP
+// ---------------------------------------------------------------------------
+//
+// Stalwart 0.16 deleted the REST management API. /api/principal/{id} and every
+// other /api/* route 404 before authentication is considered at all, which is why
+// sending a bearer token made no difference to the "Upstream error (404)" this
+// used to return -- there was nothing left to authenticate against. Management
+// objects moved to JMAP at /jmap/, so the subscriber list is now the MailingList
+// object's `recipients` property.
+//
+// `recipients` is a Map<String>, which serialises as an object keyed by address
+// rather than as an array:
+//
+//     "recipients": { "alice@example.com": true, "bob@example.com": true }
+//
+// Stalwart patches that map through JSON pointers, and the arms we need behave
+// exactly like the old addItem/removeItem: setting `recipients/<addr>` to true
+// pushes only if absent, and to null removes. So a subscribe stays one round trip
+// with no read-modify-write, and two people subscribing at once cannot lose an
+// update the way a get-then-put would.
 
-    let headers = Headers::new();
-    headers.set("Authorization", &format!("Bearer {}", api_key))?;
-    headers.set("Content-Type", "application/json")?;
-
-    let mut init = RequestInit::new();
-    init.with_method(Method::Patch);
-    init.with_headers(headers);
-    init.with_body(Some(wasm_bindgen::JsValue::from_str(&body)));
-
-    let req = Request::new_with_init(&url, &init)?;
-    let resp = Fetch::Request(req).send().await?;
-    Ok(resp.status_code())
+/// Escape one JSON Pointer segment (RFC 6901). `~` must be escaped before `/`,
+/// or the escape marker introduced by the second pass is re-escaped by the first.
+/// `is_valid_email` constrains the domain but not the local part, so an address
+/// containing either character does reach here.
+fn json_pointer_escape(segment: &str) -> String {
+    segment.replace('~', "~0").replace('/', "~1")
 }
 
-/// Fetch the current external members of a Stalwart mailing list.
-async fn stalwart_get_members(
-    api_url: &str,
-    api_key: &str,
-    list_id: &str,
-) -> Result<Vec<String>> {
-    let url = format!("{}/api/principal/{}", api_url, list_id);
+/// Iterate a JMAP response's methodResponses as (method name, result) pairs.
+fn method_responses(resp: &serde_json::Value) -> Vec<(&str, &serde_json::Value)> {
+    resp.get("methodResponses")
+        .and_then(|v| v.as_array())
+        .map(|calls| {
+            calls
+                .iter()
+                .filter_map(|call| {
+                    let arr = call.as_array()?;
+                    if arr.len() < 2 {
+                        return None;
+                    }
+                    Some((arr[0].as_str().unwrap_or(""), &arr[1]))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
 
-    let headers = Headers::new();
-    headers.set("Authorization", &format!("Bearer {}", api_key))?;
-
-    let mut init = RequestInit::new();
-    init.with_method(Method::Get);
-    init.with_headers(headers);
-
-    let req = Request::new_with_init(&url, &init)?;
-    let mut resp = Fetch::Request(req).send().await?;
-
-    if resp.status_code() != 200 {
-        return Err(Error::RustError(format!(
-            "Stalwart API returned {}",
-            resp.status_code()
-        )));
+/// Render a non-empty `notCreated`/`notUpdated` map into an error message.
+fn method_error(method: &str, result: &serde_json::Value, key: &str) -> Option<String> {
+    let map = result.get(key)?.as_object()?;
+    if map.is_empty() {
+        return None;
     }
 
-    let principal: StalwartGetResponse = resp.json().await?;
-    Ok(principal.data.external_members)
+    let details: Vec<String> = map
+        .iter()
+        .map(|(k, v)| {
+            let err_type = v.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
+            format!("{}: {}", k, err_type)
+        })
+        .collect();
+    Some(format!("{} {}: {}", method, key, details.join(", ")))
+}
+
+/// Assemble a Basic credential from a username and password.
+///
+/// The list credentials are stored as two plain values and encoded here, rather than
+/// as one pre-encoded secret, because the pre-encoded convention is what broke this
+/// endpoint: a bare password in the secret is indistinguishable from a correct value
+/// until the server answers 401, and secrets cannot be read back to check. Sending
+/// still uses a pre-encoded JMAP_CREDENTIALS -- left alone deliberately, since
+/// changing it would invalidate a secret that may currently be correct.
+fn basic_credential(user: &str, password: &str) -> String {
+    use base64::Engine as _;
+    base64::engine::general_purpose::STANDARD.encode(format!("{}:{}", user, password))
+}
+
+/// Describe the *shape* of a Basic credential for the logs. Never returns any part
+/// of the credential itself -- the point is to tell "wrong password" apart from
+/// "wrong format", which is the mistake this convention actually invites: the value
+/// must be the base64 of `user:password`, and a bare password looks identical to a
+/// correct one from the outside.
+fn describe_credential(credential: &str) -> String {
+    let mut notes = vec![format!("{} chars", credential.len())];
+
+    if credential.trim() != credential {
+        notes.push("has surrounding whitespace".into());
+    }
+    if credential.contains(':') {
+        notes.push("contains ':', so it is raw user:password rather than base64".into());
+    }
+    if !credential
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '=')
+    {
+        notes.push("has characters outside the base64 alphabet".into());
+    }
+
+    notes.join("; ")
+}
+
+/// POST a JMAP request and return the parsed response. Fails on transport errors,
+/// a non-200 status, and request-level JMAP errors. Method-level failures are left
+/// to the caller, which knows which method it asked for.
+async fn jmap_call(
+    base_url: &str,
+    credentials: &str,
+    body: &serde_json::Value,
+) -> std::result::Result<serde_json::Value, String> {
+    let url = format!("{}/jmap/", base_url);
+    let body_str = serde_json::to_string(body).map_err(|e| format!("JSON serialization: {}", e))?;
+
+    let headers = Headers::new();
+    headers
+        .set("Authorization", &format!("Basic {}", credentials))
+        .map_err(|e| format!("Header error: {}", e))?;
+    headers
+        .set("Content-Type", "application/json")
+        .map_err(|e| format!("Header error: {}", e))?;
+
+    let mut init = RequestInit::new();
+    init.with_method(Method::Post);
+    init.with_headers(headers);
+    init.with_body(Some(wasm_bindgen::JsValue::from_str(&body_str)));
+
+    let req = Request::new_with_init(&url, &init).map_err(|e| format!("Request build: {}", e))?;
+    let mut resp = Fetch::Request(req)
+        .send()
+        .await
+        .map_err(|e| format!("JMAP fetch: {}", e))?;
+
+    if resp.status_code() == 401 {
+        // A 401 is far more often a malformed credential than a wrong password, and
+        // the status alone cannot tell those apart. Secrets are write-only once set,
+        // so the only way to inspect one is from in here -- describe its shape, never
+        // its content, and only into the logs.
+        return Err(format!(
+            "JMAP HTTP status 401 (credential {})",
+            describe_credential(credentials)
+        ));
+    }
+
+    if resp.status_code() != 200 {
+        return Err(format!("JMAP HTTP status {}", resp.status_code()));
+    }
+
+    let resp_body: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("JMAP response parse: {}", e))?;
+
+    // A request-level failure arrives as a method response named "error".
+    for (method, result) in method_responses(&resp_body) {
+        if method == "error" {
+            let err_type = result.get("type").and_then(|v| v.as_str()).unwrap_or("unknown");
+            return Err(format!("JMAP error: {}", err_type));
+        }
+    }
+
+    Ok(resp_body)
+}
+
+/// Wrap a single MailingList method call in a JMAP request. `accountId` is only
+/// sent when STALWART_LIST_ACCOUNT_ID is configured -- whether these registry
+/// objects require it is unconfirmed, and omitting the key is the safer default
+/// until an x:MailingList/get against the live server settles it.
+fn mailing_list_request(
+    account_id: Option<&str>,
+    method: &str,
+    mut args: serde_json::Value,
+) -> serde_json::Value {
+    if let (Some(id), Some(obj)) = (account_id, args.as_object_mut()) {
+        obj.insert("accountId".into(), serde_json::Value::String(id.to_string()));
+    }
+
+    serde_json::json!({
+        "using": ["urn:ietf:params:jmap:core", "urn:stalwart:jmap"],
+        "methodCalls": [[method, args, "0"]]
+    })
+}
+
+/// Add or remove one address in the mailing list's `recipients` map.
+/// Requires the sysMailingListUpdate permission.
+async fn jmap_set_recipient(
+    base_url: &str,
+    credentials: &str,
+    account_id: Option<&str>,
+    list_id: &str,
+    email: &str,
+    subscribe: bool,
+) -> std::result::Result<(), String> {
+    let value = if subscribe {
+        serde_json::Value::Bool(true)
+    } else {
+        serde_json::Value::Null
+    };
+
+    let mut patch = serde_json::Map::new();
+    patch.insert(format!("recipients/{}", json_pointer_escape(email)), value);
+    let mut update = serde_json::Map::new();
+    update.insert(list_id.to_string(), serde_json::Value::Object(patch));
+
+    let body = mailing_list_request(
+        account_id,
+        "x:MailingList/set",
+        serde_json::json!({ "update": serde_json::Value::Object(update) }),
+    );
+
+    let resp = jmap_call(base_url, credentials, &body).await?;
+
+    for (method, result) in method_responses(&resp) {
+        if let Some(err) = method_error(method, result, "notUpdated") {
+            return Err(err);
+        }
+    }
+
+    Ok(())
+}
+
+/// Read the mailing list's current recipients.
+/// Requires the sysMailingListGet permission.
+async fn jmap_get_recipients(
+    base_url: &str,
+    credentials: &str,
+    account_id: Option<&str>,
+    list_id: &str,
+) -> std::result::Result<Vec<String>, String> {
+    let body = mailing_list_request(
+        account_id,
+        "x:MailingList/get",
+        serde_json::json!({ "ids": [list_id], "properties": ["recipients"] }),
+    );
+
+    let resp = jmap_call(base_url, credentials, &body).await?;
+
+    for (method, result) in method_responses(&resp) {
+        if method != "x:MailingList/get" {
+            continue;
+        }
+
+        let Some(list) = result
+            .get("list")
+            .and_then(|v| v.as_array())
+            .and_then(|l| l.first())
+        else {
+            return Err(format!("mailing list {} not found", list_id));
+        };
+
+        // Map<String> is an object keyed by address; a false value means unset.
+        let mut members: Vec<String> = list
+            .get("recipients")
+            .and_then(|v| v.as_object())
+            .map(|m| {
+                m.iter()
+                    .filter(|(_, v)| v.as_bool().unwrap_or(false))
+                    .map(|(k, _)| k.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        members.sort();
+        return Ok(members);
+    }
+
+    Err("no x:MailingList/get response".to_string())
 }
 
 /// Parse YAML-ish frontmatter from a markdown file (between --- delimiters).
@@ -290,7 +483,6 @@ async fn jmap_send_email(
     subject: &str,
     html_body: &str,
 ) -> std::result::Result<(), String> {
-    let url = format!("{}/jmap/", base_url);
     let plain_text = html_to_plain_text(html_body);
 
     let body = serde_json::json!({
@@ -358,61 +550,12 @@ async fn jmap_send_email(
         ]
     });
 
-    let body_str =
-        serde_json::to_string(&body).map_err(|e| format!("JSON serialization: {}", e))?;
+    let resp_body = jmap_call(base_url, credentials, &body).await?;
 
-    let headers = Headers::new();
-    headers.set("Authorization", &format!("Basic {}", credentials))
-        .map_err(|e| format!("Header error: {}", e))?;
-    headers.set("Content-Type", "application/json")
-        .map_err(|e| format!("Header error: {}", e))?;
-
-    let mut init = RequestInit::new();
-    init.with_method(Method::Post);
-    init.with_headers(headers);
-    init.with_body(Some(wasm_bindgen::JsValue::from_str(&body_str)));
-
-    let req = Request::new_with_init(&url, &init)
-        .map_err(|e| format!("Request build: {}", e))?;
-    let mut resp = Fetch::Request(req).send().await
-        .map_err(|e| format!("JMAP fetch: {}", e))?;
-
-    if resp.status_code() != 200 {
-        return Err(format!("JMAP HTTP status {}", resp.status_code()));
-    }
-
-    // Parse JMAP response to check for method-level errors
-    let resp_body: serde_json::Value = resp.json().await
-        .map_err(|e| format!("JMAP response parse: {}", e))?;
-
-    // Check for notCreated errors in Email/set response
-    if let Some(method_responses) = resp_body.get("methodResponses").and_then(|v| v.as_array()) {
-        for call in method_responses {
-            let arr = match call.as_array() {
-                Some(a) if a.len() >= 2 => a,
-                _ => continue,
-            };
-            let method = arr[0].as_str().unwrap_or("");
-            let result = &arr[1];
-
-            // Check for JMAP-level errors (e.g. "error" method type)
-            if method == "error" {
-                let err_type = result.get("type").and_then(|v| v.as_str()).unwrap_or("unknown");
-                return Err(format!("JMAP error: {}", err_type));
-            }
-
-            // Check for notCreated in Email/set or EmailSubmission/set
-            if let Some(not_created) = result.get("notCreated") {
-                if let Some(obj) = not_created.as_object() {
-                    if !obj.is_empty() {
-                        let details: Vec<String> = obj.iter().map(|(k, v)| {
-                            let err_type = v.get("type").and_then(|t| t.as_str()).unwrap_or("unknown");
-                            format!("{}: {}", k, err_type)
-                        }).collect();
-                        return Err(format!("{} notCreated: {}", method, details.join(", ")));
-                    }
-                }
-            }
+    // Email/set and EmailSubmission/set report per-object failures in notCreated.
+    for (method, result) in method_responses(&resp_body) {
+        if let Some(err) = method_error(method, result, "notCreated") {
+            return Err(err);
         }
     }
 
@@ -441,7 +584,7 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 async fn handle_subscription_op(
     mut req: Request,
     ctx: &RouteContext<()>,
-    action: &'static str,
+    subscribe: bool,
 ) -> Result<Response> {
     let headers = cors_headers(&req)?;
 
@@ -472,42 +615,54 @@ async fn handle_subscription_op(
         );
     }
 
-    let api_url = ctx.env.var("STALWART_API_URL")?.to_string();
-    let api_key = ctx.env.secret("STALWART_API_KEY")?.to_string();
+    let base_url = ctx.env.var("JMAP_API_URL")?.to_string();
+    let credentials = basic_credential(
+        &ctx.env.var("JMAP_LIST_USER")?.to_string(),
+        &ctx.env.secret("JMAP_LIST_PASSWORD")?.to_string(),
+    );
     let list_id = ctx.env.var("STALWART_LIST_ID")?.to_string();
+    let account_id = ctx
+        .env
+        .var("STALWART_LIST_ACCOUNT_ID")
+        .ok()
+        .map(|v| v.to_string());
 
-    let ops = [StalwartPatchOp {
-        action,
-        field: "externalMembers",
-        value: email,
-    }];
-
-    match stalwart_patch(&api_url, &api_key, &list_id, &ops).await {
-        Ok(status) if status < 300 => {
-            json_response(&ApiResponse { success: true, error: None }, 200, headers)
+    match jmap_set_recipient(
+        &base_url,
+        &credentials,
+        account_id.as_deref(),
+        &list_id,
+        &email,
+        subscribe,
+    )
+    .await
+    {
+        Ok(()) => json_response(&ApiResponse { success: true, error: None }, 200, headers),
+        Err(e) => {
+            // The upstream detail goes to `wrangler tail`, not to the caller. The old
+            // code returned it in the body, which is how the 0.16 breakage was visible
+            // from outside -- convenient that once, but this is a public endpoint and
+            // the detail now names an authenticated JMAP method.
+            console_error!(
+                "mailing list {} failed: {}",
+                if subscribe { "subscribe" } else { "unsubscribe" },
+                e
+            );
+            json_response(
+                &ApiResponse {
+                    success: false,
+                    error: Some("Subscription service unavailable".into()),
+                },
+                502,
+                headers,
+            )
         }
-        Ok(status) => json_response(
-            &ApiResponse {
-                success: false,
-                error: Some(format!("Upstream error ({})", status)),
-            },
-            502,
-            headers,
-        ),
-        Err(_) => json_response(
-            &ApiResponse {
-                success: false,
-                error: Some(format!("{} failed", action)),
-            },
-            500,
-            headers,
-        ),
     }
 }
 
 /// POST /api/subscribe — add email to the Stalwart mailing list.
 async fn handle_subscribe(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    handle_subscription_op(req, &ctx, "addItem").await
+    handle_subscription_op(req, &ctx, true).await
 }
 
 /// GET /api/unsubscribe — show the unsubscribe form.
@@ -517,7 +672,7 @@ async fn handle_unsubscribe_page(_req: Request, _ctx: RouteContext<()>) -> Resul
 
 /// POST /api/unsubscribe — remove email from the Stalwart mailing list.
 async fn handle_unsubscribe_post(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    handle_subscription_op(req, &ctx, "removeItem").await
+    handle_subscription_op(req, &ctx, false).await
 }
 
 /// Extract Bearer token from Authorization header.
@@ -545,11 +700,21 @@ async fn handle_subscribers(req: Request, ctx: RouteContext<()>) -> Result<Respo
         );
     }
 
-    let api_url = ctx.env.var("STALWART_API_URL")?.to_string();
-    let api_key = ctx.env.secret("STALWART_API_KEY")?.to_string();
+    let base_url = ctx.env.var("JMAP_API_URL")?.to_string();
+    let credentials = basic_credential(
+        &ctx.env.var("JMAP_LIST_USER")?.to_string(),
+        &ctx.env.secret("JMAP_LIST_PASSWORD")?.to_string(),
+    );
     let list_id = ctx.env.var("STALWART_LIST_ID")?.to_string();
+    let account_id = ctx
+        .env
+        .var("STALWART_LIST_ACCOUNT_ID")
+        .ok()
+        .map(|v| v.to_string());
 
-    let members = stalwart_get_members(&api_url, &api_key, &list_id).await?;
+    let members = jmap_get_recipients(&base_url, &credentials, account_id.as_deref(), &list_id)
+        .await
+        .map_err(Error::RustError)?;
 
     #[derive(Serialize)]
     struct ListResponse {
