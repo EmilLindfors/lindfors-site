@@ -24,6 +24,25 @@ struct ApiResponse {
     error: Option<String>,
 }
 
+/// The result of a per-recipient send. `sent` and `failed` exist because the send is
+/// no longer one atomic message: it can now half-succeed, and the operator needs to
+/// know which addresses to retry.
+#[derive(Serialize)]
+struct SendResponse {
+    success: bool,
+    sent: usize,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    failed: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+}
+
+/// Ceiling on recipients in one send. Every message is a subrequest and Workers caps
+/// those per invocation (50 on the free plan), with one already spent fetching the
+/// newsletter markdown. Set below the cap rather than at it, and enforced by refusing
+/// the send outright -- see handle_send_newsletter.
+const MAX_RECIPIENTS_PER_SEND: usize = 45;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -46,6 +65,10 @@ fn cors_headers(req: &Request) -> Result<Headers> {
 }
 
 fn json_response(data: &ApiResponse, status: u16, headers: Headers) -> Result<Response> {
+    json_response_value(data, status, headers)
+}
+
+fn json_response_value<T: Serialize>(data: &T, status: u16, headers: Headers) -> Result<Response> {
     let body = serde_json::to_string(data).map_err(|e| Error::RustError(e.to_string()))?;
     let mut resp = Response::ok(body)?;
     for (key, val) in headers.entries() {
@@ -510,7 +533,11 @@ fn email_template(
     post_url: &str,
     rendered_body: &str,
     site_url: &str,
+    unsubscribe_url: &str,
 ) -> String {
+    // Escaped because the URL carries a query string, and `&` opens an entity in an
+    // href just as it does in text.
+    let unsubscribe_url = html_escape(unsubscribe_url);
     format!(
         r#"<!DOCTYPE html>
 <html lang="en">
@@ -537,7 +564,7 @@ fn email_template(
         <div style="border-top: 2px solid #2A8F82; margin-top: 32px; padding-top: 16px;">
             <p style="color: #5A7078; font-size: 13px; margin: 0 0 8px 0;">You received this because you subscribed to the <a href="{site_url}" style="color: #D4706A;">lindfors.no</a> newsletter.</p>
             <a href="{site_url}" style="color: #D4706A; font-size: 13px;">Visit site</a> &middot;
-            <a href="{site_url}/api/unsubscribe" style="color: #D4706A; font-size: 13px;">Unsubscribe</a>
+            <a href="{unsubscribe_url}" style="color: #D4706A; font-size: 13px;">Unsubscribe</a>
         </div>
     </div>
 </body>
@@ -548,6 +575,7 @@ fn email_template(
         post_url = post_url,
         rendered_body = rendered_body,
         site_url = site_url,
+        unsubscribe_url = unsubscribe_url,
     )
 }
 
@@ -753,17 +781,24 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     diff == 0
 }
 
-/// HMAC-SHA256 over the canonical `confirm:v1:<exp>:<email>` string, hex encoded.
-/// The version marker is there so the format can change later without old links
-/// silently verifying under new rules.
-fn confirm_signature(secret: &str, email: &str, exp: u64) -> String {
+/// HMAC-SHA256 over an already-canonicalised payload, hex encoded.
+///
+/// Every caller must include a purpose prefix in `payload`. Two kinds of token now
+/// share this secret, and without the prefix a link that proves someone wants *in*
+/// would be a valid instruction to take them *out*, and vice versa. The `v1` marker
+/// lets the format change later without old links silently verifying under new rules.
+fn sign(secret: &str, payload: &str) -> String {
     use hmac::{Hmac, Mac};
     use sha2::Sha256;
 
     let mut mac = <Hmac<Sha256> as Mac>::new_from_slice(secret.as_bytes())
         .expect("HMAC accepts keys of any length");
-    mac.update(format!("confirm:v1:{}:{}", exp, email).as_bytes());
+    mac.update(payload.as_bytes());
     to_hex(&mac.finalize().into_bytes())
+}
+
+fn confirm_signature(secret: &str, email: &str, exp: u64) -> String {
+    sign(secret, &format!("confirm:v1:{}:{}", exp, email))
 }
 
 /// Verify a submitted signature against the address and expiry it claims to cover.
@@ -772,6 +807,65 @@ fn confirm_signature_matches(secret: &str, email: &str, exp: u64, sig: &str) -> 
         confirm_signature(secret, email, exp).as_bytes(),
         sig.as_bytes(),
     )
+}
+
+// ---------------------------------------------------------------------------
+// Unsubscribe tokens
+// ---------------------------------------------------------------------------
+//
+// One-click unsubscribe (RFC 8058) needs the List-Unsubscribe URL to identify its
+// recipient, because the POST a mail client sends carries nothing but the literal
+// body `List-Unsubscribe=One-Click`. That is why the newsletter is now sent per
+// recipient rather than fanned out by Stalwart from one message: a single shared
+// message can only carry a single shared URL, and a single shared URL cannot say
+// who is unsubscribing.
+//
+// **These deliberately do not expire.** A confirmation link is an invitation and
+// should go stale; an unsubscribe link sits in a mailbox for as long as the
+// subscriber keeps the message, and one that stops working is how a reader who
+// wanted to leave quietly ends up reporting the mail as spam instead. The token is
+// an *identifier*, not an authorisation -- `/api/unsubscribe` is deliberately open,
+// so the signature grants nothing that a bare POST to the JSON endpoint does not.
+// It is here to name the recipient and to make the URL tamper-evident.
+//
+// The cost of never expiring: rotating CONFIRM_SECRET strands every unsubscribe
+// link in already-delivered mail. Survivable, and only because the typed-address
+// form at /api/unsubscribe is a permanent fallback that needs no token at all.
+
+fn unsubscribe_signature(secret: &str, email: &str) -> String {
+    sign(secret, &format!("unsub:v1:{}", email))
+}
+
+fn unsubscribe_signature_matches(secret: &str, email: &str, sig: &str) -> bool {
+    constant_time_eq(
+        unsubscribe_signature(secret, email).as_bytes(),
+        sig.as_bytes(),
+    )
+}
+
+/// Build the per-recipient unsubscribe URL that goes in both the `List-Unsubscribe`
+/// header and the footer link. Form-encoded for the same reason as `confirm_link`.
+fn unsubscribe_link(site_url: &str, email: &str, sig: &str) -> String {
+    let query = form_urlencoded::Serializer::new(String::new())
+        .append_pair("email", email)
+        .append_pair("sig", sig)
+        .finish();
+    format!("{}/api/unsubscribe?{}", site_url, query)
+}
+
+/// Pull a signed unsubscribe token out of decoded key/value pairs.
+fn parse_unsubscribe_token<I: Iterator<Item = (String, String)>>(
+    pairs: I,
+) -> Option<(String, String)> {
+    let (mut email, mut sig) = (None, None);
+    for (key, value) in pairs {
+        match key.as_str() {
+            "email" => email = Some(value),
+            "sig" => sig = Some(value),
+            _ => {}
+        }
+    }
+    Some((email?, sig?))
 }
 
 /// Build the confirmation link. The address goes through form encoding because
@@ -891,11 +985,8 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
 /// Read and validate the `email` field of a JSON body, or produce the 400 to return
 /// in its place.
 ///
-/// This is all that subscribe and unsubscribe still share. They used to share the
-/// whole handler behind a `subscribe: bool`, which stopped making sense when subscribe
-/// stopped touching the list: the flag was only ever `false` at the one remaining call
-/// site, and a parameter that can only take one value is a worse kind of duplication
-/// than the one it removed.
+/// Only `/api/subscribe` uses this now. Unsubscribe reads its body as text instead,
+/// because it has to accept a form encoding that `req.json()` cannot parse.
 async fn read_email_field(
     req: &mut Request,
     headers: &Headers,
@@ -993,20 +1084,65 @@ async fn handle_subscribe(mut req: Request, ctx: RouteContext<()>) -> Result<Res
     }
 }
 
-/// GET /api/unsubscribe — show the unsubscribe form.
-async fn handle_unsubscribe_page(_req: Request, _ctx: RouteContext<()>) -> Result<Response> {
-    Response::from_html(unsubscribe_form_page())
+/// GET /api/unsubscribe — with a signed token, a one-button confirmation; without
+/// one, the typed-address form.
+///
+/// **Performs nothing either way**, for the same reason `/api/confirm` does not: this
+/// URL is printed in the footer of every newsletter, and mail scanners fetch every
+/// link they find. A GET that unsubscribed would let Outlook Safe Links quietly empty
+/// the list one reader at a time -- a far worse failure here than on confirm, because
+/// nobody notices they have been unsubscribed until they wonder why the mail stopped.
+async fn handle_unsubscribe_page(req: Request, ctx: RouteContext<()>) -> Result<Response> {
+    let secret = ctx.env.secret("CONFIRM_SECRET")?.to_string();
+
+    let token = parse_unsubscribe_token(req.url()?.query_pairs().into_owned())
+        .filter(|(email, sig)| unsubscribe_signature_matches(&secret, email, sig));
+
+    // An absent or bad token is not an error worth a page of its own: fall through to
+    // the form, which needs no token and is the permanent way back for anyone whose
+    // link has been mangled or whose secret was rotated.
+    let Some((email, sig)) = token else {
+        return Response::from_html(unsubscribe_form_page());
+    };
+
+    Response::from_html(page_shell(
+        "Unsubscribe",
+        &format!(
+            r#"<h1>Unsubscribe</h1>
+<p>Stop sending new posts to <strong>{email}</strong>?</p>
+<form method="POST" action="/api/unsubscribe">
+    <input type="hidden" name="email" value="{email}">
+    <input type="hidden" name="sig" value="{sig}">
+    <button type="submit">Unsubscribe</button>
+</form>
+<p class="note">You can resubscribe any time from the site.</p>"#,
+            email = html_escape(&email),
+            sig = html_escape(&sig),
+        ),
+    ))
 }
 
-/// POST /api/unsubscribe — remove email from the Stalwart mailing list.
+/// POST /api/unsubscribe — remove an address from the list.
 ///
-/// Deliberately still unauthenticated. Subscribing needs proof of control because it
-/// creates an obligation; unsubscribing removes one, and the worst an unauthenticated
-/// caller achieves is stopping mail to an address that is not theirs. Requiring a
-/// signed link would also break one-click unsubscribe, and a subscriber who cannot
-/// leave easily reports the mail as spam instead -- which costs far more than the abuse.
+/// Three kinds of caller reach this, and they disagree about everything except the
+/// outcome:
+///   - the site's form, sending JSON `{"email": "..."}` and expecting JSON back
+///   - the button on the page above, posting a signed token as form fields
+///   - an RFC 8058 one-click unsubscribe, posting the fixed body
+///     `List-Unsubscribe=One-Click` with the token in the *URL* -- the body carries
+///     nothing identifying at all, which is why the URL has to
+///
+/// The last of those is why this endpoint used to be broken: it called `req.json()`,
+/// which fails on a form body, so every one-click unsubscribe got a 400 while the
+/// message that prompted it advertised one-click support.
+///
+/// Still deliberately unauthenticated in the untokened JSON case. Subscribing needs
+/// proof of control because it creates an obligation; unsubscribing removes one, and
+/// the worst an unauthenticated caller achieves is stopping mail to an address that is
+/// not theirs. A subscriber who cannot leave easily reports the mail as spam instead.
 async fn handle_unsubscribe_post(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let headers = cors_headers(&req)?;
+    let url = req.url()?;
 
     if let Some(resp) = enforce_rate_limit(
         &ctx.env,
@@ -1019,10 +1155,66 @@ async fn handle_unsubscribe_post(mut req: Request, ctx: RouteContext<()>) -> Res
         return Ok(resp);
     }
 
-    let email = match read_email_field(&mut req, &headers).await? {
-        Ok(email) => email,
-        Err(resp) => return Ok(resp),
+    // Read the body once, as text, and decide what it is afterwards. `req.json()` is
+    // what made the form-encoded case impossible to handle.
+    let body = req.text().await.unwrap_or_default();
+    let secret = ctx.env.secret("CONFIRM_SECRET")?.to_string();
+
+    // A signed token beats the body: it identifies the recipient without trusting the
+    // caller to name themselves, and it is the only thing a one-click POST provides.
+    let signed = parse_unsubscribe_token(form_urlencoded::parse(body.as_bytes()).into_owned())
+        .or_else(|| parse_unsubscribe_token(url.query_pairs().into_owned()))
+        .filter(|(email, sig)| unsubscribe_signature_matches(&secret, email, sig));
+
+    if let Some((email, _)) = signed {
+        return match jmap_set_recipient(&ListConfig::from_env(&ctx.env)?, &email, false).await {
+            Ok(()) => {
+                console_log!("Unsubscribed via signed link");
+                // HTML, even for the one-click POST. RFC 8058 says the response body is
+                // never shown to the user, so a page costs the machine nothing and is
+                // what the human pressing the button needs.
+                Response::from_html(page_shell(
+                    "Unsubscribed",
+                    r#"<h1>Unsubscribed</h1>
+<p>That address has been removed and will not receive further newsletters.</p>
+<p class="note">Changed your mind? You can sign up again from the site.</p>"#,
+                ))
+            }
+            Err(e) => {
+                console_error!("Signed unsubscribe failed: {}", e);
+                Ok(Response::from_html(page_shell(
+                    "Something went wrong",
+                    r#"<h1>Something went wrong</h1>
+<p>The link was valid, but the change could not be saved. Please try again in a few minutes.</p>"#,
+                ))?
+                .with_status(502))
+            }
+        };
+    }
+
+    // No usable token: the site's JSON form, which answers in JSON.
+    let Ok(parsed) = serde_json::from_str::<EmailRequest>(&body) else {
+        return json_response(
+            &ApiResponse {
+                success: false,
+                error: Some("Invalid request body".into()),
+            },
+            400,
+            headers,
+        );
     };
+
+    let email = parsed.email.trim().to_lowercase();
+    if !is_valid_email(&email) {
+        return json_response(
+            &ApiResponse {
+                success: false,
+                error: Some("Invalid email address".into()),
+            },
+            400,
+            headers,
+        );
+    }
 
     match jmap_set_recipient(&ListConfig::from_env(&ctx.env)?, &email, false).await {
         Ok(()) => json_response(
@@ -1034,10 +1226,8 @@ async fn handle_unsubscribe_post(mut req: Request, ctx: RouteContext<()>) -> Res
             headers,
         ),
         Err(e) => {
-            // The upstream detail goes to `wrangler tail`, not to the caller. The old
-            // code returned it in the body, which is how the 0.16 breakage was visible
-            // from outside -- convenient that once, but this is a public endpoint and
-            // the detail names an authenticated JMAP method.
+            // The upstream detail goes to `wrangler tail`, not to the caller: this is a
+            // public endpoint and the detail names an authenticated JMAP method.
             console_error!("mailing list unsubscribe failed: {}", e);
             json_response(
                 &ApiResponse {
@@ -1183,50 +1373,102 @@ async fn handle_send_newsletter(mut req: Request, ctx: RouteContext<()>) -> Resu
         .unwrap_or_else(|| format!("{}/blog/{}/", site_url, body.slug));
 
     let rendered_body = render_markdown(md_body);
-    let html = email_template(
-        &title,
-        &description,
-        &date,
-        &post_url,
-        &rendered_body,
-        &site_url,
-    );
+    let subject = body.subject.unwrap_or(title.clone());
 
-    let subject = body.subject.unwrap_or(title);
+    // One message per recipient, rather than one message to the list alias for
+    // Stalwart to fan out.
+    //
+    // The fan-out was cheaper and it is genuinely a loss, but it made one-click
+    // unsubscribe impossible: every recipient received byte-identical headers, so
+    // `List-Unsubscribe` could only ever name a URL that did not know who was
+    // clicking it. The header claimed RFC 8058 support the endpoint could not
+    // honour. Sending individually is what lets each message carry its own signed
+    // URL -- in the header and in the footer link, so leaving costs one click
+    // instead of typing your own address into a form.
+    let list = ListConfig::from_env(&ctx.env)?;
+    let recipients = jmap_get_recipients(&list).await.map_err(Error::RustError)?;
 
-    // One message to the list alias; Stalwart fans it out to the recipients.
-    match jmap_send_email(
-        &SenderConfig::from_env(&ctx.env)?,
-        "newsletter@lindfors.no",
-        &subject,
-        &html,
-        Some(&format!("{}/api/unsubscribe", site_url)),
-    )
-    .await
-    {
-        Ok(()) => {
-            console_log!("Newsletter sent: {}", body.slug);
-            json_response(
-                &ApiResponse {
-                    success: true,
-                    error: None,
-                },
-                200,
-                cors_headers(&req)?,
-            )
-        }
-        Err(e) => {
-            console_log!("Newsletter send failed: {}", e);
-            json_response(
-                &ApiResponse {
-                    success: false,
-                    error: Some(format!("Failed to send: {}", e)),
-                },
-                502,
-                cors_headers(&req)?,
-            )
+    if recipients.len() > MAX_RECIPIENTS_PER_SEND {
+        // Refused rather than truncated. Each send is a subrequest, and Workers caps
+        // those per invocation; quietly mailing the first 45 of a longer list and
+        // reporting success is the worst available outcome. Past this point the send
+        // needs batching or a queue, which is P10's problem.
+        console_error!(
+            "Refusing to send: {} recipients exceeds the {} cap",
+            recipients.len(),
+            MAX_RECIPIENTS_PER_SEND
+        );
+        return json_response_value(
+            &SendResponse {
+                success: false,
+                sent: 0,
+                failed: vec![],
+                error: Some(format!(
+                    "List has {} recipients, above the {} the Worker can send in one \
+                     invocation. Sending would silently truncate.",
+                    recipients.len(),
+                    MAX_RECIPIENTS_PER_SEND
+                )),
+            },
+            400,
+            cors_headers(&req)?,
+        );
+    }
+
+    let sender = SenderConfig::from_env(&ctx.env)?;
+    let secret = ctx.env.secret("CONFIRM_SECRET")?.to_string();
+
+    let mut sent = 0usize;
+    let mut failed: Vec<String> = Vec::new();
+
+    for email in &recipients {
+        let unsubscribe_url =
+            unsubscribe_link(&site_url, email, &unsubscribe_signature(&secret, email));
+        let html = email_template(
+            &title,
+            &description,
+            &date,
+            &post_url,
+            &rendered_body,
+            &site_url,
+            &unsubscribe_url,
+        );
+
+        match jmap_send_email(&sender, email, &subject, &html, Some(&unsubscribe_url)).await {
+            Ok(()) => sent += 1,
+            Err(e) => {
+                // The address is named here because this endpoint is admin-only and
+                // the operator needs to know exactly who to retry.
+                console_error!("Newsletter send to {} failed: {}", email, e);
+                failed.push(email.clone());
+            }
         }
     }
+
+    console_log!(
+        "Newsletter {}: {} sent, {} failed",
+        body.slug,
+        sent,
+        failed.len()
+    );
+
+    // A partial send is reported as a failure, not a success with a footnote. It
+    // needs someone to look at it, and the CLI keys off the HTTP status.
+    let all_ok = failed.is_empty();
+    json_response_value(
+        &SendResponse {
+            success: all_ok,
+            sent,
+            failed,
+            error: if all_ok {
+                None
+            } else {
+                Some("Some recipients could not be reached; see `failed`.".into())
+            },
+        },
+        if all_ok { 200 } else { 502 },
+        cors_headers(&req)?,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -1880,6 +2122,126 @@ mod tests {
         let link = confirm_link("https://lindfors.no", "a@b.com", 1, "deadbeef");
         let html = confirmation_email_template(&link, "https://lindfors.no");
         assert!(html_to_plain_text(&html).contains(&link));
+    }
+
+    // --- unsubscribe tokens ---
+
+    /// The reason both payloads carry a purpose prefix. One secret signs two kinds of
+    /// token, and without domain separation a link proving someone wants *in* would be
+    /// a valid instruction to take them *out*.
+    #[test]
+    fn confirm_and_unsubscribe_tokens_are_not_interchangeable() {
+        let email = "a@example.com";
+        let exp = 1000u64;
+
+        let confirm = confirm_signature(SECRET, email, exp);
+        let unsub = unsubscribe_signature(SECRET, email);
+        assert_ne!(confirm, unsub);
+
+        // Neither verifies as the other.
+        assert!(!unsubscribe_signature_matches(SECRET, email, &confirm));
+        assert!(!confirm_signature_matches(SECRET, email, exp, &unsub));
+    }
+
+    #[test]
+    fn unsubscribe_signature_binds_the_address() {
+        let sig = unsubscribe_signature(SECRET, "a@example.com");
+        assert!(unsubscribe_signature_matches(SECRET, "a@example.com", &sig));
+        assert!(!unsubscribe_signature_matches(
+            SECRET,
+            "b@example.com",
+            &sig
+        ));
+        assert!(!unsubscribe_signature_matches(
+            "other-secret",
+            "a@example.com",
+            &sig
+        ));
+    }
+
+    /// Unsubscribe links have no expiry field at all -- they sit in a mailbox for as
+    /// long as the subscriber keeps the message, and one that goes stale is how
+    /// someone who wanted to leave ends up reporting the mail as spam instead.
+    #[test]
+    fn unsubscribe_link_carries_no_expiry() {
+        let link = unsubscribe_link("https://lindfors.no", "a@b.com", "deadbeef");
+        assert!(link.starts_with("https://lindfors.no/api/unsubscribe?"));
+        assert!(!link.contains("exp="));
+    }
+
+    #[test]
+    fn unsubscribe_link_round_trips_plus_addressing() {
+        let email = "emil+news@example.com";
+        let sig = unsubscribe_signature(SECRET, email);
+        let link = unsubscribe_link("https://lindfors.no", email, &sig);
+        assert!(
+            !link.contains("emil+news"),
+            "raw '+' survived into the URL: {link}"
+        );
+
+        let url = Url::parse(&link).expect("link parses");
+        let (parsed_email, parsed_sig) =
+            parse_unsubscribe_token(url.query_pairs().into_owned()).expect("token parses");
+        assert_eq!(parsed_email, email);
+        assert!(unsubscribe_signature_matches(
+            SECRET,
+            &parsed_email,
+            &parsed_sig
+        ));
+    }
+
+    /// The shape an RFC 8058 client actually sends: the token is in the URL, and the
+    /// body is the fixed string with nothing identifying in it.
+    #[test]
+    fn one_click_body_carries_no_token_so_the_url_must() {
+        let body = "List-Unsubscribe=One-Click";
+        assert!(
+            parse_unsubscribe_token(form_urlencoded::parse(body.as_bytes()).into_owned()).is_none()
+        );
+
+        let email = "a@b.com";
+        let sig = unsubscribe_signature(SECRET, email);
+        let url = Url::parse(&unsubscribe_link("https://lindfors.no", email, &sig)).unwrap();
+        let (e, sg) = parse_unsubscribe_token(url.query_pairs().into_owned()).unwrap();
+        assert_eq!(e, email);
+        assert!(unsubscribe_signature_matches(SECRET, &e, &sg));
+    }
+
+    #[test]
+    fn unsubscribe_token_needs_both_fields() {
+        let only_email = [("email".to_string(), "a@b.com".to_string())];
+        assert!(parse_unsubscribe_token(only_email.into_iter()).is_none());
+
+        let only_sig = [("sig".to_string(), "abc".to_string())];
+        assert!(parse_unsubscribe_token(only_sig.into_iter()).is_none());
+    }
+
+    /// Every newsletter now carries the recipient's own link, escaped, in the footer.
+    #[test]
+    fn newsletter_footer_carries_the_recipient_link() {
+        let email = "a+b@example.com";
+        let link = unsubscribe_link(
+            "https://lindfors.no",
+            email,
+            &unsubscribe_signature(SECRET, email),
+        );
+        let html = email_template(
+            "Title",
+            "Description",
+            "2026-01-01",
+            "https://lindfors.no/blog/x/",
+            "<p>body</p>",
+            "https://lindfors.no",
+            &link,
+        );
+
+        assert!(html.contains(&html_escape(&link)));
+        assert!(
+            !html.contains(&link),
+            "unescaped link leaked into the markup"
+        );
+        // The old un-personalised footer target must be gone.
+        assert!(!html.contains(r#"href="https://lindfors.no/api/unsubscribe""#));
     }
 
     #[test]
