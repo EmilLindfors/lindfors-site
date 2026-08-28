@@ -44,6 +44,7 @@ Thumbs.db
 # Internal working notes -- not for the public repo. These MUST stay listed here:
 # deploy.sh runs `git add -A`, so anything untracked but not ignored gets swept
 # back in on the next deploy without anyone deciding to publish it.
+CLAUDE.md
 NEWSLETTER_IMPROVEMENTS.md
 TODO.md
 TTS_PLAN.md
