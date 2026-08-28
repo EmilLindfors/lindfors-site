@@ -46,3 +46,5 @@ Thumbs.db
 # back in on the next deploy without anyone deciding to publish it.
 NEWSLETTER_IMPROVEMENTS.md
 TODO.md
+TTS_PLAN.md
+telemetry.md
