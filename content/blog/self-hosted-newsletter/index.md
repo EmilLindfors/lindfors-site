@@ -12,8 +12,18 @@ skip_audio = true
 toc = true
 changelog = [
     { date = 2026-08-11, description = "Newsletter commands moved from shell scripts to the site-tools Rust CLI." },
+    { date = 2026-08-28, description = "Stalwart 0.16 deleted the REST management API, so subscriber management moved to JMAP and the mailing list principal became a MailingList object. Subscribing is now double opt-in, and the newsletter is sent per recipient rather than fanned out by Stalwart." },
 ]
 +++
+
+**Update, August 2026.** Most of this still stands, but three things in it are now
+wrong: Stalwart 0.16 deleted the management API this post uses, subscribing is double
+opt-in, and the newsletter is no longer fanned out by the mail server. I have corrected
+the descriptions below. The story of *why* each of those changed -- including the fact
+that the `List-Unsubscribe` headers praised here were unsigned and therefore useless for
+the entire life of this post -- is in the follow-up:
+[My newsletter promised one-click unsubscribe and answered every one with a
+400](/blog/newsletter-one-click-unsubscribe/).
 
 I wanted a newsletter for my blog. The requirements were simple: let people subscribe, send them posts when I publish, let them unsubscribe. That's it.
 
@@ -41,21 +51,21 @@ The setup has three components:
                     │  (WASM on CF)    │
                     │                  │
                     │  • subscribe     │
+                    │  • confirm       │
                     │  • unsubscribe   │
                     │  • send-newsletter│
                     └──────┬───────────┘
                            │
-              Stalwart Management API + JMAP
+                         JMAP
                            │
                     ┌──────▼───────────┐
                     │  Stalwart Mail   │
                     │  Server (VPS)    │
                     │                  │
-                    │  • Mailing list  │
-                    │    principal     │
+                    │  • MailingList   │
+                    │    object with a │
+                    │    recipients map│
                     │  • JMAP sending  │
-                    │  • Fan-out to    │
-                    │    subscribers   │
                     └──────────────────┘
 ```
 
@@ -63,7 +73,9 @@ The setup has three components:
 2. **Rust Cloudflare Worker** -- handles `/api/*` routes for subscribe, unsubscribe, and sending
 3. **Stalwart mail server** -- self-hosted on a VPS, acts as both the subscriber store and the delivery engine
 
-The key insight is that **Stalwart's mailing list eliminates the need for a database entirely**. A Stalwart mailing list principal has an `externalMembers` field -- an array of email addresses. That array *is* my subscriber list. When I send an email to `newsletter@lindfors.no`, Stalwart fans it out to every address in that array. No database. No subscriber table. No sync jobs.
+The key insight is that **Stalwart's mailing list eliminates the need for a database entirely**. A Stalwart MailingList object has a `recipients` map, `{"someone@example.com": true}`. That map *is* my subscriber list. No database. No subscriber table. No sync jobs.
+
+It held up better than I expected. When I added double opt-in six months later, the obvious cost was a pending-subscribers table -- and it turned out not to need one. That is the [follow-up post](/blog/newsletter-one-click-unsubscribe/).
 
 ## The Cloudflare Worker
 
@@ -83,44 +95,30 @@ Four dependencies. `pulldown-cmark` is there because the worker renders newslett
 
 ### Subscribe
 
-When someone enters their email on my site, the form posts to `/api/subscribe`. The worker validates the email and calls Stalwart's management API:
+When someone enters their email on my site, the form posts to `/api/subscribe`. The worker validates the email, rate-limits the caller, and mails a signed confirmation link. Pressing the button in that mail posts to `/api/confirm`, and only then does the address reach the list:
 
 ```rust
-#[derive(Serialize)]
-struct StalwartPatchOp {
-    action: &'static str,
-    field: &'static str,
-    value: String,
-}
+/// Add or remove one address in the mailing list's `recipients` map.
+async fn jmap_set_recipient(
+    cfg: &ListConfig,
+    email: &str,
+    subscribe: bool,
+) -> std::result::Result<(), String> {
+    let value = if subscribe {
+        serde_json::Value::Bool(true)
+    } else {
+        serde_json::Value::Null
+    };
 
-async fn handle_subscribe(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let body: SubscribeRequest = req.json().await?;
-    let email = body.email.trim().to_lowercase();
-
-    // ... validation ...
-
-    let ops = [StalwartPatchOp {
-        action: "addItem",
-        field: "externalMembers",
-        value: email,
-    }];
-
-    stalwart_patch(&api_url, &api_key, &list_id, &ops).await?;
-    // ...
+    let mut patch = serde_json::Map::new();
+    patch.insert(format!("recipients/{}", json_pointer_escape(email)), value);
+    // ... wrap in an `update` for x:MailingList/set and send it over JMAP
 }
 ```
 
-That's it. One PATCH request to Stalwart's `/api/principal/{list_id}` endpoint with an `addItem` operation on `externalMembers`. The subscriber is added to the mailing list. No confirmation email, no double opt-in dance (I should probably add that eventually).
+That's it. One `x:MailingList/set` call setting `recipients/<addr>` to `true`, or to `null` to remove it. Unsubscribe is the same call with the other value.
 
-Unsubscribe is the same thing but with `removeItem`:
-
-```rust
-let ops = [StalwartPatchOp {
-    action: "removeItem",
-    field: "externalMembers",
-    value: email,
-}];
-```
+The original version of this post did a single `addItem` PATCH against Stalwart's REST management API at `/api/principal/{list_id}`, and said "no confirmation email, no double opt-in dance (I should probably add that eventually)". Both of those are gone now: 0.16 deleted the REST API, and the double opt-in dance turned out to be worth doing.
 
 ### Sending newsletters via JMAP
 
@@ -174,22 +172,22 @@ let body = serde_json::json!({
 
 The first call (`Email/set`) creates the email as a draft. The second (`EmailSubmission/set`) submits it for delivery, referencing the draft with `#draft`. The `onSuccessDestroyEmail` cleans up the draft after sending. All in one HTTP request.
 
-The email goes to `newsletter@lindfors.no` -- the mailing list address. Stalwart handles fan-out to all subscribers. I never iterate over subscribers or send individual emails.
+That request went to `newsletter@lindfors.no`, the mailing list address, and Stalwart fanned it out to every subscriber. It does not any more. The worker reads the `recipients` map and runs the request above once per address, because the `List-Unsubscribe` header has to name a different URL for each recipient and a fanned-out message can only carry one. Why that turned out to be forced rather than a preference is the [follow-up](/blog/newsletter-one-click-unsubscribe/).
 
-Note the `List-Unsubscribe` and `List-Unsubscribe-Post` headers. These are important for deliverability -- they tell email clients to show a native "Unsubscribe" button rather than flagging the email as spam.
+Note the `List-Unsubscribe` and `List-Unsubscribe-Post` headers. They are supposed to make email clients show a native "Unsubscribe" button instead of leaning towards the spam button. Mine did nothing at all for six months, because RFC 8058 requires both headers to be named in the DKIM signature's `h=` tag and Stalwart's default signs five headers, none of which are these.
 
 ## The Stalwart side
 
-[Stalwart](https://stalw.art) is a mail server written in Rust. I run it on a small VPS. It handles SMTP, IMAP, JMAP, and has a management API.
+[Stalwart](https://stalw.art) is a mail server written in Rust. I run it on a small VPS. It handles SMTP, IMAP and JMAP. Up to 0.16 it also had a REST management API, which is where the original version of this post did its subscriber management; 0.16 deleted it, and everything now goes over JMAP.
 
-The only Stalwart configuration specific to newsletters is a mailing list principal. In Stalwart, a "principal" is any entity -- user, group, or mailing list. A mailing list principal has:
+The only Stalwart configuration specific to newsletters is a mailing list. As of 0.16 that is a MailingList object, id `e`, with:
 
 - An email address (`newsletter@lindfors.no`)
-- A list of `externalMembers` (the subscriber email addresses)
+- A `recipients` map, `{"someone@example.com": true}`, holding the subscribers
 
-When Stalwart receives an email addressed to the list, it delivers a copy to each external member. That's the entire delivery mechanism.
+Stalwart will still deliver a copy to every recipient if you mail the list address, and that is a perfectly good delivery mechanism if you do not need per-recipient unsubscribe links. I do, so the worker sends individually instead.
 
-I created the list principal through Stalwart's admin interface. No special configuration files. The worker manages members through the management API.
+I created the list through Stalwart's admin interface. No special configuration files. The worker manages members with `x:MailingList/set`, which needs the `sysMailingListUpdate` permission on the account it authenticates as.
 
 ## The send workflow
 
@@ -223,12 +221,15 @@ site-tools newsletter send my-post
 This reads the admin key from `.env` and calls the worker:
 
 ```bash
-curl -s -X POST "https://lindfors.no/api/send-newsletter?key=$ADMIN_KEY" \
+curl -s --fail-with-body -X POST "https://lindfors.no/api/send-newsletter" \
+  -H "Authorization: Bearer $ADMIN_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"slug":"my-post"}'
 ```
 
-The worker fetches the markdown from my site, parses the frontmatter, renders the body to HTML with `pulldown-cmark`, wraps it in an email template, and sends it via JMAP.
+The admin key started out in the query string, where it ended up in logs. It is a bearer header now. `--fail-with-body` is there because `curl -s` exits 0 on an HTTP 500, so for a while the CLI reported failed sends as successes.
+
+The worker fetches the markdown from my site, parses the frontmatter, renders the body to HTML with `pulldown-cmark`, wraps it in an email template, and sends one copy per recipient via JMAP.
 
 The email template is inline in the worker -- hardcoded HTML with inline styles (because email clients). No template engine, no CSS framework. It looks clean and renders consistently across Gmail, Apple Mail, and Outlook.
 
@@ -247,13 +248,15 @@ Compare this to Mailchimp ($13/month for 500 subscribers), ConvertKit ($29/month
 
 This is not a replacement for Mailchimp if you need marketing features. Things I don't have:
 
-- **Double opt-in** -- I should add a confirmation email flow. Right now subscribing is single opt-in.
 - **Analytics** -- No open tracking, no click tracking. I don't care about this, but you might.
 - **Bounce handling** -- Stalwart handles bounces at the SMTP level, but I don't automatically remove bouncing addresses from the list.
 - **Pretty email editor** -- I write markdown. The template is hardcoded Rust. This is a feature, not a bug.
 - **Scheduling** -- I run a shell script when I want to send. No scheduled sends.
+- **Any list longer than 45 addresses.** Since the switch to per-recipient sending, each message is a subrequest and Workers caps those per invocation. Past 45 the send is refused rather than truncated, and getting further needs batching or a queue.
 
 For a personal blog with a handful of subscribers who actually want to read what I write, none of these are real problems.
+
+Double opt-in used to be on this list. It isn't any more, and adding it did not cost me a database.
 
 ## Workers-rs tips
 
@@ -279,20 +282,22 @@ codegen-units = 1
 Substack is free for free newsletters. Here's why I didn't:
 
 1. **I already have a blog.** My posts are markdown in a git repo, rendered by Zola, deployed to Cloudflare. I don't want a second copy of my content on someone else's platform.
-2. **I already run a mail server.** Stalwart was set up for personal email. The newsletter is just one mailing list principal.
-3. **Ownership.** My subscriber list is a JSON array in my mail server. I can export it with one API call. No platform lock-in, no "download your data" request, no worrying about a service shutting down or changing terms.
+2. **I already run a mail server.** Stalwart was set up for personal email. The newsletter is just one mailing list on it.
+3. **Ownership.** My subscriber list is a JSON map in my mail server. I can export it with one API call. No platform lock-in, no "download your data" request, no worrying about a service shutting down or changing terms.
 4. **It's a fun project.** The whole thing took an afternoon. It's 700 lines of Rust that I fully understand and can modify. That has value.
+
+On that last point: it is about 2,200 lines now, after double opt-in, rate limiting, signed tokens and 30 tests. Most of that growth was the difference between a thing that works for me and a thing that can be pointed at strangers.
 
 ## The newsletter stack
 
 - **API**: [workers-rs](https://github.com/cloudflare/workers-rs) (Rust, compiled to WASM)
 - **Mail server**: [Stalwart](https://stalw.art/) (Rust) on a VPS
-- **Protocol**: JMAP for sending, Management API for subscriber management
+- **Protocol**: JMAP, for both sending and subscriber management
 - **Markdown rendering**: [pulldown-cmark](https://github.com/raphlinus/pulldown-cmark) (in the worker, at send time)
 - **DNS**: Cloudflare (SPF, DKIM, DMARC records)
 
-The code for the worker is [on GitHub](https://github.com/emillindfors/lindfors-site). If you're running Stalwart and want to try this, the setup is straightforward -- a worker, a mailing list principal, and a few environment variables.
+The code for the worker is [on GitHub](https://github.com/emillindfors/lindfors-site). If you're running Stalwart and want to try this, the setup is straightforward -- a worker, a mailing list, and a few environment variables. Read [the follow-up](/blog/newsletter-one-click-unsubscribe/) before you copy the unsubscribe handling out of this one.
 
 ---
 
-*This post is part of a series on the infrastructure behind this blog. See also: [Site overview](/blog/building-a-personal-blog-with-zola/), [Citations](/blog/citations-on-a-static-site/), [Typst PDF generation](/blog/typst-for-blogging/), [Images](/blog/images-on-a-static-site/).*
+*This post is part of a series on the infrastructure behind this blog. See also: [what broke six months later](/blog/newsletter-one-click-unsubscribe/), [Site overview](/blog/building-a-personal-blog-with-zola/), [Citations](/blog/citations-on-a-static-site/), [Typst PDF generation](/blog/typst-for-blogging/), [Images](/blog/images-on-a-static-site/).*
