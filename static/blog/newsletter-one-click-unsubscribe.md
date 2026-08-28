@@ -18,11 +18,13 @@ Advertising one-click support and then answering 400 is worse than never adverti
 
 ## The one address on the list
 
-One address, and I had not put it there: `aiemails@luxous.co.uk`. I have no idea who that is. Nothing had ever been sent to it, so no harm landed, but `/api/subscribe` added any address anyone typed, which made the form on my blog an open invitation to point a self-hosted mail server at strangers.
+I should say what state this site is in, because the numbers in this post make no sense otherwise. The blog is not launched. I have not announced it anywhere, not submitted the feed to any aggregator, not put the link in front of anyone. The subscribe form has been sitting on a site I am deliberately not pointing people at while I finish building the parts underneath it, and the newsletter is one of those parts. An empty subscriber list is what I expected to find.
+
+It was not quite empty. There was one address on it, which I did not recognise and had certainly not typed myself -- a scraped or automated signup of the kind that finds any form left open long enough. Nothing had ever been sent to it, so no harm landed, but `/api/subscribe` added any address anyone typed, which made the form an open invitation to point a self-hosted mail server at strangers.
 
 That matters more here than it would on Mailchimp. Sender reputation on a personal VPS is fragile in a way theirs is not, and one spam-trap hit from `postmaster@lindfors.no` costs more than this newsletter is worth. GDPR also wants demonstrable consent, and a form submission from an unverified address is not that.
 
-I have not launched the blog properly yet, so there was nobody to inconvenience. That turned out to be the best possible time to take the whole thing apart.
+Having nobody to inconvenience turned out to be the best possible time to take the whole thing apart.
 
 ## Double opt-in without a database
 
@@ -123,7 +125,7 @@ RFC 8058 §4 requires the `List-Unsubscribe` and `List-Unsubscribe-Post` headers
 
 It is a Stalwart config setting rather than code. `DkimSignature.headers` defaults to exactly those five headers, none of which are the two that matter here. Adding them fixed the `h=`, with no restart needed. Which means the original post was wrong twice in one sentence when it said those headers were important for deliverability. They are important. Mine had been unsigned and unusable for the entire life of that post.
 
-And then Gmail still did not show the control, because it gates that on being a bulk sender, roughly 5,000 messages per 24 hours to gmail.com addresses. My list has one member.
+And then Gmail still did not show the control, because it gates that on being a bulk sender, roughly 5,000 messages per 24 hours to gmail.com addresses. My list has one member, and I did not put it there.
 
 So one-click is implemented, correct, and dormant. Everything under my control is verified: the endpoint honours the exact RFC 8058 request, replayed with a real production-minted token for a 200, the headers are present and signed, authentication passes. What is left is a variable I do not control. That is a better place to stop than pretending it works, and if you are about to walk down this path it is the thing worth knowing before you start.
 
