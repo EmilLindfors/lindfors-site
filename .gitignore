@@ -40,3 +40,8 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.bak
+
+# Internal working notes -- not for the public repo. These MUST stay listed here:
+# deploy.sh runs `git add -A`, so anything untracked but not ignored gets swept
+# back in on the next deploy without anyone deciding to publish it.
+NEWSLETTER_IMPROVEMENTS.md
