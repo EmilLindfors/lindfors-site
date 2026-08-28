@@ -1372,8 +1372,8 @@ fn event_subject(secret: &str, email: &str) -> String {
 ///
 /// Deterministic rather than random: the same event for the same address in the same
 /// second is the same file, so a double-clicked confirmation link overwrites itself
-/// instead of logging twice. Sorting by name sorts by time, which is what makes
-/// PROPFIND output readable.
+/// instead of logging twice. The timestamp is ISO 8601, so sorting by name sorts by
+/// time — which is the only index a WebDAV collection has.
 fn event_key(at: &str, event: Event, subject: &str) -> String {
     let safe: String = at
         .chars()
@@ -1479,9 +1479,46 @@ fn claim_body(
     .to_string()
 }
 
-/// Now, as an RFC 2822 string. Workers has no `std::time` clock.
+/// Now, as an ISO 8601 UTC instant: `2026-08-28T13:48:49Z`.
+///
+/// Not `Date::to_string()`, which is JavaScript's `toString()` and gives
+/// `Fri Aug 28 2026 13:48:49 GMT+0000 (Coordinated Universal Time)`. That is 55
+/// characters of mostly nothing, and it sorts by *weekday name* — so a log whose
+/// filenames carry it is ordered Fri, Mon, Thu rather than by time. This is what the
+/// event log's filenames are built from, and sorting them is the only index it has.
 fn now_string() -> String {
-    Date::now().to_string()
+    iso8601(Date::now().as_millis())
+}
+
+/// Milliseconds since the epoch, as an ISO 8601 UTC instant.
+fn iso8601(millis: u64) -> String {
+    let secs = (millis / 1000) as i64;
+    let (days, tod) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
+    let (year, month, day) = civil_from_days(days);
+    format!(
+        "{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}Z",
+        tod / 3600,
+        (tod % 3600) / 60,
+        tod % 60
+    )
+}
+
+/// Days since 1970-01-01 to (year, month, day), by Howard Hinnant's civil_from_days.
+///
+/// The inverse of the algorithm `pdf.rs` uses to pin SOURCE_DATE_EPOCH, and here for the
+/// same reason: Workers has no `std::time` clock and pulling in a date crate to format
+/// one timestamp is not worth the wasm.
+fn civil_from_days(days: i64) -> (i64, u32, u32) {
+    let z = days + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    (year, month, day)
 }
 
 /// The URL one issue's claim lives at, under the configured collection.
@@ -2507,16 +2544,38 @@ mod tests {
         );
     }
 
-    /// Sorting by filename has to sort by time, or PROPFIND output is unreadable.
+    /// Sorting by filename has to sort by time, because it is the only index a WebDAV
+    /// collection has.
+    ///
+    /// This is the test that should have caught the first version. It passed on two
+    /// same-day timestamps while the format in use — JavaScript's `Date.toString()` —
+    /// began with the weekday name, so a real log sorted Fri, Mon, Thu.
     #[test]
-    fn keys_sort_chronologically_within_a_day() {
+    fn keys_sort_chronologically_across_months_and_years() {
         let subject = "abc123";
         let mut keys = vec![
-            event_key("Thu, 28 Aug 2026 11:00:00 GMT", Event::Confirmed, subject),
-            event_key("Thu, 28 Aug 2026 09:00:00 GMT", Event::Confirmed, subject),
+            event_key("2026-08-28T13:48:49Z", Event::Confirmed, subject),
+            event_key("2025-09-01T09:00:00Z", Event::Confirmed, subject),
+            event_key("2025-01-02T08:00:00Z", Event::Confirmed, subject),
         ];
         keys.sort();
-        assert!(keys[0].contains("09-00-00"));
+        assert!(keys[0].starts_with("2025-01-02"), "{keys:?}");
+        assert!(keys[1].starts_with("2025-09-01"), "{keys:?}");
+        assert!(keys[2].starts_with("2026-08-28"), "{keys:?}");
+    }
+
+    #[test]
+    fn iso8601_formats_known_instants() {
+        assert_eq!(iso8601(0), "1970-01-01T00:00:00Z");
+        assert_eq!(iso8601(1_000_000_000_000), "2001-09-09T01:46:40Z");
+        // A leap day, which is where a hand-rolled calendar goes wrong.
+        assert_eq!(iso8601(1_709_164_800_000), "2024-02-29T00:00:00Z");
+    }
+
+    /// Sub-second precision is dropped, not rounded up past the second it happened in.
+    #[test]
+    fn iso8601_truncates_milliseconds() {
+        assert_eq!(iso8601(1_709_164_800_999), "2024-02-29T00:00:00Z");
     }
 
     /// One file per issue, directly under the configured collection.
