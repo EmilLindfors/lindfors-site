@@ -6,6 +6,7 @@ draft = false
 [taxonomies]
 tags = ["ai", "llm", "governance", "gdpr", "consulting"]
 categories = ["business"]
+series = ["Coding agents and what they cost"]
 
 [extra]
 skip_audio = true

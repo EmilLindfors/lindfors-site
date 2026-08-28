@@ -6,6 +6,7 @@ draft = false
 [taxonomies]
 tags = ["rust", "llm", "codex", "openrouter", "ollama", "tooling"]
 categories = ["programming"]
+series = ["Coding agents and what they cost"]
 
 [extra]
 skip_audio = true

@@ -500,6 +500,127 @@ pre {
 }
 
 // =============================================================================
+// Series
+// =============================================================================
+
+// Sits between the post header and the article, so a reader who lands on part 5 from
+// search knows that before reading it. Quieter than .post-newsletter on purpose --
+// it is orientation, not a call to action.
+.series-banner {
+    margin: var(--spacing-lg) 0;
+    padding: var(--spacing-md);
+    background: var(--color-bg-secondary);
+    border-left: 3px solid var(--color-accent);
+    border-radius: 4px;
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+}
+
+.series-banner-head {
+    margin: 0;
+    color: var(--color-text-secondary);
+}
+
+.series-position {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.series-nav {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+    font-size: 0.875rem;
+
+    a {
+        flex: 1 1 45%;
+        min-width: 0;
+    }
+
+    // Alone, "next" would otherwise sit on the left where "previous" belongs.
+    .series-next {
+        margin-left: auto;
+        text-align: right;
+    }
+}
+
+.series-all {
+    margin-top: var(--spacing-sm);
+    font-size: 0.875rem;
+
+    summary {
+        cursor: pointer;
+        color: var(--color-text-secondary);
+    }
+
+    .series-list {
+        margin: var(--spacing-sm) 0 0 0;
+    }
+}
+
+.series-list {
+    padding-left: 1.5rem;
+
+    li {
+        margin-bottom: var(--spacing-xs);
+    }
+
+    .is-current {
+        font-weight: 600;
+    }
+}
+
+// The /series/ and /series/<name>/ listing: enough room per part to read the
+// description, since this page is where a series gets chosen rather than continued.
+.series-list--index {
+    margin: 0;
+    font-family: var(--font-sans);
+
+    li {
+        margin-bottom: var(--spacing-md);
+    }
+
+    a {
+        font-weight: 500;
+    }
+
+    time {
+        display: block;
+        font-size: 0.8125rem;
+        color: var(--color-text-secondary);
+    }
+}
+
+.series-part-excerpt {
+    margin: var(--spacing-xs) 0 0 0;
+    font-size: 0.9375rem;
+    color: var(--color-text-secondary);
+}
+
+.series-entry {
+    margin-bottom: var(--spacing-xl);
+
+    h2 {
+        margin-bottom: var(--spacing-xs);
+    }
+}
+
+.series-entry-meta {
+    margin: 0 0 var(--spacing-md) 0;
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+}
+
+.series-back {
+    margin-top: var(--spacing-lg);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+}
+
+// =============================================================================
 // Related Posts
 // =============================================================================
 
@@ -1884,6 +2005,14 @@ pre {
 
     .nav-container {
         padding: var(--spacing-sm) var(--spacing-md);
+    }
+
+    // Four labels plus three icons plus the site title is more than 320px of row.
+    // Tighten the gap and let the labels shrink rather than push the theme toggle
+    // off the edge; the icons are fixed-width and stay where they are.
+    .nav-links {
+        gap: var(--spacing-sm);
+        font-size: 0.9375rem;
     }
 
     // The 768px rules park the action buttons in their own grid column, sized

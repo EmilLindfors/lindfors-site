@@ -6,11 +6,13 @@ draft = false
 [taxonomies]
 tags = ["typst", "rust", "pdf", "writing"]
 categories = ["programming"]
+series = ["The infrastructure behind this blog"]
 
 [extra]
 skip_audio = true
 toc = true
 changelog = [
+    { date = 2026-08-28, description = "Dropped the hand-maintained series footer; the series banner at the top of the post replaces it." },
     { date = 2026-08-11, description = "PDF generation moved from shell scripts to the site-tools Rust CLI." },
 ]
 +++
@@ -367,7 +369,3 @@ None of these are blockers. The output quality is excellent and the developer ex
 | Code font | JetBrains Mono |
 
 The blog post template, CV source, and build tooling are all in the [site repo](https://github.com/emillindfors/lindfors-site). If you're using Zola (or any static site generator) and want auto-generated PDFs, `tools/site-tools/src/pdf.rs` is the piece to look at -- it's generic enough to adapt.
-
----
-
-*This post is part of a series on the infrastructure behind this blog. See also: [Site overview](/blog/building-a-personal-blog-with-zola/), [Self-hosted newsletter](/blog/self-hosted-newsletter/), [Citations](/blog/citations-on-a-static-site/), [Images](/blog/images-on-a-static-site/).*

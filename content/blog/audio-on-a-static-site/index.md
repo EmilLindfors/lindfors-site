@@ -6,6 +6,7 @@ draft = false
 [taxonomies]
 tags = ["accessibility", "rust", "zola", "tts"]
 categories = ["programming"]
+series = ["The infrastructure behind this blog"]
 
 [extra]
 toc = true

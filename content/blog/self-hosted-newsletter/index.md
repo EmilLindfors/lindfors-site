@@ -6,13 +6,15 @@ draft = false
 [taxonomies]
 tags = ["rust", "self-hosting", "email", "cloudflare"]
 categories = ["programming"]
+series = ["The infrastructure behind this blog"]
 
 [extra]
 skip_audio = true
 toc = true
 changelog = [
-    { date = 2026-08-11, description = "Newsletter commands moved from shell scripts to the site-tools Rust CLI." },
+    { date = 2026-08-28, description = "Dropped the hand-maintained series footer; the series banner at the top of the post replaces it." },
     { date = 2026-08-28, description = "Stalwart 0.16 deleted the REST management API, so subscriber management moved to JMAP and the mailing list principal became a MailingList object. Subscribing is now double opt-in, and the newsletter is sent per recipient rather than fanned out by Stalwart." },
+    { date = 2026-08-11, description = "Newsletter commands moved from shell scripts to the site-tools Rust CLI." },
 ]
 +++
 
@@ -297,7 +299,3 @@ On that last point: it is about 2,200 lines now, after double opt-in, rate limit
 - **DNS**: Cloudflare (SPF, DKIM, DMARC records)
 
 The code for the worker is [on GitHub](https://github.com/emillindfors/lindfors-site). If you're running Stalwart and want to try this, the setup is straightforward -- a worker, a mailing list, and a few environment variables. Read [the follow-up](/blog/newsletter-one-click-unsubscribe/) before you copy the unsubscribe handling out of this one.
-
----
-
-*This post is part of a series on the infrastructure behind this blog. See also: [what broke six months later](/blog/newsletter-one-click-unsubscribe/), [Site overview](/blog/building-a-personal-blog-with-zola/), [Citations](/blog/citations-on-a-static-site/), [Typst PDF generation](/blog/typst-for-blogging/), [Images](/blog/images-on-a-static-site/).*

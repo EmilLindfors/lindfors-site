@@ -51,7 +51,7 @@
 {% endcomponent bib.reference %}
 
 {% component bib.article(entry) %}
-<span class="ref-authors">{{ entry.author }}</span>.
+<span class="ref-authors">{{ entry.author }}</span>{% if not entry.author is ending_with(pat=".") %}.{% endif %}
 <span class="ref-title">"{{ entry.title }}"</span>.
 {% if entry.journal %}<em class="ref-journal">{{ entry.journal }}</em>{% endif %}{% if entry.volume %}, vol. {{ entry.volume }}{% endif %}{% if entry.number %}, no. {{ entry.number }}{% endif %}{% if entry.pages %}, pp. {{ entry.pages }}{% endif %}{% if entry.year %}, {{ entry.year }}{% endif %}.
 {% if entry.doi %}<a href="https://doi.org/{{ entry.doi }}" class="ref-doi">doi:{{ entry.doi }}</a>{% endif %}
@@ -59,7 +59,7 @@
 {% endcomponent bib.article %}
 
 {% component bib.book(entry) %}
-<span class="ref-authors">{{ entry.author }}</span>.
+<span class="ref-authors">{{ entry.author }}</span>{% if not entry.author is ending_with(pat=".") %}.{% endif %}
 <em class="ref-title">{{ entry.title }}</em>.
 {% if entry.publisher %}{{ entry.publisher }}{% endif %}{% if entry.year %}, {{ entry.year }}{% endif %}.
 {% if entry.isbn %}ISBN: {{ entry.isbn }}{% endif %}
@@ -67,7 +67,7 @@
 {% endcomponent bib.book %}
 
 {% component bib.inproceedings(entry) %}
-<span class="ref-authors">{{ entry.author }}</span>.
+<span class="ref-authors">{{ entry.author }}</span>{% if not entry.author is ending_with(pat=".") %}.{% endif %}
 <span class="ref-title">"{{ entry.title }}"</span>.
 {% if entry.booktitle %}In <em>{{ entry.booktitle }}</em>{% endif %}{% if entry.pages %}, pp. {{ entry.pages }}{% endif %}{% if entry.year %}, {{ entry.year }}{% endif %}.
 {% if entry.doi %}<a href="https://doi.org/{{ entry.doi }}" class="ref-doi">doi:{{ entry.doi }}</a>{% endif %}
@@ -75,22 +75,101 @@
 {% endcomponent bib.inproceedings %}
 
 {% component bib.phdthesis(entry) %}
-<span class="ref-authors">{{ entry.author }}</span>.
+<span class="ref-authors">{{ entry.author }}</span>{% if not entry.author is ending_with(pat=".") %}.{% endif %}
 <em class="ref-title">{{ entry.title }}</em>.
 PhD thesis, {% if entry.school %}{{ entry.school }}{% endif %}{% if entry.year %}, {{ entry.year }}{% endif %}.
 {% if entry.url %}<a href="{{ entry.url }}" class="ref-url">[link]</a>{% endif %}
 {% endcomponent bib.phdthesis %}
 
 {% component bib.misc(entry) %}
-<span class="ref-authors">{{ entry.author }}</span>.
+<span class="ref-authors">{{ entry.author }}</span>{% if not entry.author is ending_with(pat=".") %}.{% endif %}
 <span class="ref-title">"{{ entry.title }}"</span>.
 {% if entry.howpublished %}{{ entry.howpublished }}{% endif %}{% if entry.year %}, {{ entry.year }}{% endif %}.
 {% if entry.url %}<a href="{{ entry.url }}" class="ref-url">[link]</a>{% endif %}
 {% endcomponent bib.misc %}
 
 {% component bib.generic(entry) %}
-{% if entry.author %}<span class="ref-authors">{{ entry.author }}</span>. {% endif %}
+{% if entry.author %}<span class="ref-authors">{{ entry.author }}</span>{% if not entry.author is ending_with(pat=".") %}.{% endif %} {% endif %}
 {% if entry.title %}<span class="ref-title">"{{ entry.title }}"</span>. {% endif %}
 {% if entry.year %}{{ entry.year }}.{% endif %}
 {% if entry.url %}<a href="{{ entry.url }}" class="ref-url">[link]</a>{% endif %}
 {% endcomponent bib.generic %}
+
+{# --- Series ---
+
+   A series post carries only the series title in its `series` taxonomy. Everything
+   else -- how many parts there are, which one this is, what comes next -- is derived
+   here from publication order, so adding or inserting a post never means editing the
+   ones around it.
+
+   Both the banner on a post and the /series/ page render through this one component,
+   because the two disagreeing about which post is "next" would read as a content
+   mistake rather than a template one. `term.pages` comes back newest-first and a
+   series is read oldest-first, so the single `reverse` below is the whole ordering
+   rule. `layout` picks the presentation, not the order. #}
+
+{% component series.parts(name: string, current: string = "", layout: string = "index") %}
+{% set term = get_taxonomy_term(kind="series", term=name, required=false) %}
+{% if term and term.pages | length > 0 %}
+{% set parts = term.pages | reverse %}
+
+{# Position and neighbours in one pass, so nothing has to index into `parts`.
+   `sprev` trails the current post until it is found; `snext` takes the first part
+   after it. #}
+{% set_global spos = 0 %}
+{% set_global sseen = false %}
+{% set_global sprev = false %}
+{% set_global snext = false %}
+{% for p in parts %}
+    {% if p.permalink == current %}
+        {% set_global spos = loop.index %}
+        {% set_global sseen = true %}
+    {% elif not sseen %}
+        {% set_global sprev = p %}
+    {% elif not snext %}
+        {% set_global snext = p %}
+    {% endif %}
+{% endfor %}
+
+{% if layout == "banner" %}
+<aside class="series-banner" aria-label="Series navigation">
+    <p class="series-banner-head">
+        <span class="series-position">Part {{ spos }} of {{ parts | length }}</span>
+        in <a href="{{ term.permalink }}">{{ term.name }}</a>
+    </p>
+    {% if sprev or snext %}
+    <nav class="series-nav">
+        {% if sprev %}<a href="{{ sprev.permalink }}" class="series-prev">&larr; {{ sprev.title }}</a>{% endif %}
+        {% if snext %}<a href="{{ snext.permalink }}" class="series-next">{{ snext.title }} &rarr;</a>{% endif %}
+    </nav>
+    {% endif %}
+    <details class="series-all">
+        <summary>All {{ parts | length }} parts</summary>
+        <ol class="series-list">
+            {% for p in parts %}
+            <li class="series-part{% if p.permalink == current %} is-current{% endif %}">
+                {% if p.permalink == current %}
+                <span aria-current="true">{{ p.title }}</span>
+                {% else %}
+                <a href="{{ p.permalink }}">{{ p.title }}</a>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ol>
+    </details>
+</aside>
+{% else %}
+<ol class="series-list series-list--index">
+    {% for p in parts %}
+    <li class="series-part">
+        <a href="{{ p.permalink }}">{{ p.title }}</a>
+        <time datetime="{{ p.date }}">{{ p.date | date(format="%B %Y") }}</time>
+        {% if p.description %}
+        <p class="series-part-excerpt">{{ p.description }}</p>
+        {% endif %}
+    </li>
+    {% endfor %}
+</ol>
+{% endif %}
+{% endif %}
+{% endcomponent series.parts %}

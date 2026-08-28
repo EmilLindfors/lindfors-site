@@ -46,11 +46,19 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             tools/site-tools/target
-          key: ${{ runner.os }}-tools-${{ hashFiles('tools/site-tools/Cargo.lock') }}
+            tools/img-optim/target
+          key: ${{ runner.os }}-tools-${{ hashFiles('tools/*/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-tools-
 
       - name: Test site-tools
         working-directory: tools/site-tools
+        run: cargo test
+
+      # img-optim is run by hand when an image is added to a post, so nothing in a
+      # build calls it. Without this it is the one crate here that can stop compiling
+      # without anyone noticing until the next time an image needs converting.
+      - name: Test img-optim
+        working-directory: tools/img-optim
         run: cargo test
 
       # 22 or newer: the middleware is plain .js with ESM syntax, and Node only

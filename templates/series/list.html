@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Series | {{ config.title }}{% endblock %}
+
+{% block description %}Every multi-part series on {{ config.title }} — {{ terms | length }} in total, each listed from part one.{% endblock %}
+
+{% block canonical %}{{ config.base_url | safe }}/series/{% endblock %}
+
+{% block opengraph %}
+<meta property="og:title" content="Series">
+<meta property="og:description" content="Multi-part series on {{ config.title }}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ config.base_url | safe }}/series/">
+{% if config.extra.og_image %}
+<meta property="og:image" content="{{ config.base_url | safe }}{{ config.extra.og_image }}">
+{% endif %}
+{% endblock opengraph %}
+
+{% block content %}
+<section class="section-header">
+    <h1>Series</h1>
+    <p class="section-description">Posts that are meant to be read in order. The blog index stays flat; this is the same posts grouped.</p>
+</section>
+
+{# Newest series first, oldest post first within each -- opposite directions on
+   purpose. The page is a list of things to start, so a series that gained a post last
+   week should be the first one a reader meets; a series is then read forward, so part
+   one comes first once you are inside it.
+
+   "Newest" is the series' most recent post, which is `pages.0` because `term.pages`
+   is newest-first. Sorting ascending and reversing, rather than sorting descending,
+   because `sort` has no reverse argument. #}
+{% set ordered = terms | sort(attribute="pages.0.date") | reverse %}
+
+{% for term in ordered %}
+<section class="series-entry">
+    <h2><a href="{{ term.permalink }}">{{ term.name }}</a></h2>
+    <p class="series-entry-meta">{{ term.pages | length }} part{% if term.pages | length != 1 %}s{% endif %}</p>
+    {{<series.parts name={term.name} />}}
+</section>
+{% endfor %}
+{% endblock %}

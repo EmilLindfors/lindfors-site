@@ -30,6 +30,16 @@ routes = [
 # re-install on every build.
 command = "cargo install worker-build --version 0.8.5 --locked && worker-build --release"
 
+# Workers Logs, on. Declared here rather than left to the dashboard, because a deploy
+# overwrites remote config with this file -- the first deploy after adding the send log
+# turned observability off, since absent here means disabled there.
+#
+# Load-bearing now: the event log and the welcome mail both fail *open* and report
+# through console_error! alone, so with logs off their failures are invisible. The
+# send-log claim fails closed and answers 503, which is at least visible to its caller.
+[observability]
+enabled = true
+
 [vars]
 SITE_URL = "https://lindfors.no"
 # Everything now goes through JMAP. Stalwart 0.16 deleted the REST management API,
@@ -92,6 +102,30 @@ JMAP_LIST_USER = "emil@lindfors.no"
 # its counters.
 
 # One source spraying confirmation mail at many addresses.
+
+# Send log: one file per sent issue, in a WebDAV collection on the same Stalwart the
+# newsletter already goes through. The Worker claims a slug with `PUT` +
+# `If-None-Match: *`, which Stalwart answers with 412 when the file exists -- so a send
+# whose response was lost cannot be retried into a double send.
+#
+# The account component is the **URL-encoded email address**, not a bare local part.
+# A wrong account 404s on every method, which looks nothing like a permissions problem.
+# Discover them with: PROPFIND /dav/file/ -H "Depth: 1".
+#
+# Authenticated as JMAP_LIST_USER, which therefore needs DAV file access on this path.
+# Verified end to end with `site-tools newsletter check-sendlog`: 201 on a fresh slug,
+# 412 on the same slug again, 204 on delete.
+SEND_LOG_URL = "https://mail.lindfors.no/dav/file/emil%40lindfors.no/newsletter-sent"
+
+# Event log: one file per subscribe/confirm/unsubscribe, same collection pattern. The
+# address is stored as an HMAC under EVENT_LOG_SECRET -- which must NOT be
+# CONFIRM_SECRET, since that one is meant to be rotated and a rotation would orphan
+# every event ever written.
+#
+# Writing it FAILS OPEN: refusing someone's unsubscribe because an audit trail could not
+# be written would be indefensible. Compare the send-log claim, which fails closed.
+EVENT_LOG_URL = "https://mail.lindfors.no/dav/file/emil%40lindfors.no/newsletter-events"
+
 [[ratelimits]]
 name = "SUBSCRIBE_IP_LIMITER"
 namespace_id = "1001"

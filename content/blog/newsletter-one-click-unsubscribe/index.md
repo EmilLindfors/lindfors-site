@@ -6,6 +6,7 @@ draft = false
 [taxonomies]
 tags = ["rust", "self-hosting", "email", "cloudflare"]
 categories = ["programming"]
+series = ["The infrastructure behind this blog"]
 
 [extra]
 skip_audio = true
@@ -164,7 +165,3 @@ Something like a day of work, on a system with no real subscribers to break, whi
 The WAF rule is the highest-value thing left, because the Workers binding only stops bursts and `/api/subscribe` sends mail on demand. After that: sent-markers so a retry cannot double-send, a staging list, splitting the admin key into a send-only token, and `List-Id`, which is correct on its own merits but will not flip the Gmail control and might move the newsletter from Primary to Promotions.
 
 Then I will invite a few friends and see what breaks. All of the above was verified against a list of one, and a list of one is not the same as knowing it works. The worker is [on GitHub](https://github.com/emillindfors/lindfors-site) if you want to read it, and if you ever get to the point where Gmail shows you an unsubscribe button on your own mail, I would like to hear how many messages a day it took.
-
----
-
-*This post is part of a series on the infrastructure behind this blog. See also: [the original newsletter build](/blog/self-hosted-newsletter/), [Site overview](/blog/building-a-personal-blog-with-zola/), [Citations](/blog/citations-on-a-static-site/), [Typst PDF generation](/blog/typst-for-blogging/), [Images](/blog/images-on-a-static-site/).*

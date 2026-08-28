@@ -5,6 +5,7 @@ date = 2026-02-11
 [taxonomies]
 tags = ["zola", "web", "rust", "self-hosting"]
 categories = ["programming"]
+series = ["The infrastructure behind this blog"]
 [extra]
 skip_audio = true
 featured = true

@@ -290,7 +290,3 @@ On that last point: it is about 2,200 lines now, after double opt-in, rate limit
 - **DNS**: Cloudflare (SPF, DKIM, DMARC records)
 
 The code for the worker is [on GitHub](https://github.com/emillindfors/lindfors-site). If you're running Stalwart and want to try this, the setup is straightforward -- a worker, a mailing list, and a few environment variables. Read [the follow-up](https://lindfors.no/blog/newsletter-one-click-unsubscribe/) before you copy the unsubscribe handling out of this one.
-
----
-
-*This post is part of a series on the infrastructure behind this blog. See also: [what broke six months later](https://lindfors.no/blog/newsletter-one-click-unsubscribe/), [Site overview](https://lindfors.no/blog/building-a-personal-blog-with-zola/), [Citations](https://lindfors.no/blog/citations-on-a-static-site/), [Typst PDF generation](https://lindfors.no/blog/typst-for-blogging/), [Images](https://lindfors.no/blog/images-on-a-static-site/).*

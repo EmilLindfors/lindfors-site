@@ -6,11 +6,15 @@ draft = false
 [taxonomies]
 tags = ["zola", "web", "rust"]
 categories = ["programming"]
+series = ["The infrastructure behind this blog"]
 [extra]
 skip_audio = true
 featured = true
 featured_image = "hero.webp"
 toc = true
+changelog = [
+    { date = 2026-08-28, description = "Dropped the hand-maintained series footer; the series banner at the top of the post replaces it." },
+]
 +++
 
 Every blog post I've written so far has been pure text. Code blocks, citations, math -- but no images. Now that I'm writing about sensor rigs and aquaculture sites, I need photographs. That raised a question I hadn't needed to answer yet: where should the images live?
@@ -237,7 +241,3 @@ If `featured_image` isn't set, the post renders exactly as before -- text only. 
 The featured image on this post was generated with [Qwen-Image-2.0](https://qwen.ai/blog?id=qwen-image-2.0), Alibaba's open-source image generation model released in February 2026. It supports native 2K resolution and handles text rendering well, which makes it useful for generating decorative hero images when you don't have a photograph that fits.
 
 For a technical blog, most images will be screenshots, diagrams, or photographs of actual hardware. But for posts like this one -- where the topic is abstract -- an AI-generated image works as a visual anchor without misrepresenting anything. The image went through the same `img-optim` pipeline as any other: generated at high resolution, then converted to a 1200px WebP with a 600px thumbnail.
-
----
-
-*This post is part of a series on the infrastructure behind this blog. See also: [Site overview](/blog/building-a-personal-blog-with-zola/), [Self-hosted newsletter](/blog/self-hosted-newsletter/), [Citations](/blog/citations-on-a-static-site/), [Typst PDF generation](/blog/typst-for-blogging/).*

@@ -88,6 +88,13 @@
             {% endif %}
         </header>
 
+        {# Series banner. A post can sit in more than one series -- the taxonomy takes
+           an array -- but only the first gets a banner: two of these stacked above the
+           article is noise, and the second series is still reachable from /series/. #}
+        {% if page.taxonomies.series %}
+        {{<series.parts name={page.taxonomies.series[0]} current={page.permalink} layout="banner" />}}
+        {% endif %}
+
         {# Audio version. The sidecar is written by `site-tools audio`, so its presence
            is what says a post has been synthesised -- a post that opted out with
            extra.skip_audio, or one synthesised after this build, simply has no file. #}

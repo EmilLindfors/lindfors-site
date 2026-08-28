@@ -32,9 +32,14 @@ skip_content_templating = [
 ]
 
 # Taxonomies
+# `series` carries only the series title; position and length are derived at render
+# time from publication date and the number of posts sharing the term (see
+# templates/components.html, series.parts). Writing a part number into a post would
+# have to be re-edited in every later post when one is inserted.
 taxonomies = [
     { name = "tags", feed = true },
     { name = "categories", feed = true },
+    { name = "series", feed = true },
 ]
 
 [markdown]

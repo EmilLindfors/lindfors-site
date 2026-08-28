@@ -36,12 +36,27 @@ run_zola() {
         echo "  (no local zola -- using $ZOLA_IMAGE)"
     fi
 
+    # `serve` needs the port published and the server bound to something other than
+    # 127.0.0.1, which inside a container is only reachable from inside the container.
+    # Zola's own default interface makes the site look dead from the host.
+    local docker_opts=() zola_args=("$@")
+    if [ "$1" = "serve" ]; then
+        docker_opts=(-p "${ZOLA_PORT:-1111}:${ZOLA_PORT:-1111}")
+        zola_args=("$@" --interface 0.0.0.0 --port "${ZOLA_PORT:-1111}"
+                   --base-url localhost)
+        echo "  Serving on http://localhost:${ZOLA_PORT:-1111}/"
+        # File watching does not survive a Windows bind mount: inotify never sees the
+        # host's writes, so an edit will not rebuild. Re-run after changing content.
+        [ -n "$MSYSTEM" ] && echo "  (no live reload over a Windows mount -- re-run to pick up edits)"
+    fi
+
     if [ -n "$MSYSTEM" ]; then
         # Git Bash mangles /site into a Windows path unless this is disabled.
-        MSYS_NO_PATHCONV=1 docker run --rm \
-            -v "$(pwd -W):/site" -w //site "$ZOLA_IMAGE" "$@"
+        MSYS_NO_PATHCONV=1 docker run --rm "${docker_opts[@]}" \
+            -v "$(pwd -W):/site" -w //site "$ZOLA_IMAGE" "${zola_args[@]}"
     else
-        docker run --rm -v "$(pwd):/site" -w /site "$ZOLA_IMAGE" "$@"
+        docker run --rm "${docker_opts[@]}" \
+            -v "$(pwd):/site" -w /site "$ZOLA_IMAGE" "${zola_args[@]}"
     fi
 }
 
@@ -107,6 +122,31 @@ audio_ready() {
     fi
 
     return 0
+}
+
+# Refuse to build with an unconverted image sitting in content/.
+#
+# Images are co-located with their post and committed as WebP; `tools/img-optim`
+# converts the source and the source is then deleted. Nothing in a build calls it,
+# because by the time a build runs the conversion has already happened -- which means
+# a forgotten source has nothing to stop it, and `deploy.sh` runs `git add -A`. A 4 MB
+# DSLR photo is in the history for good once that happens.
+#
+# Set SKIP_IMAGE_CHECK=1 to build with one in the tree anyway.
+preflight_images() {
+    local root="$1" found
+
+    found="$(find "$root/content" -type f         \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' -o -iname '*.gif'            -o -iname '*.bmp' -o -iname '*.tif' -o -iname '*.tiff' \) 2>/dev/null)"
+
+    [ -z "$found" ] && return 0
+
+    echo "Error: unconverted images under content/:" >&2
+    echo "$found" | sed 's/^/       /' >&2
+    echo "       Convert them, then delete the sources:" >&2
+    echo "         cd tools/img-optim && cargo build --release" >&2
+    echo "         ./tools/img-optim/target/release/img-optim -t <path>" >&2
+    echo "       (or re-run with SKIP_IMAGE_CHECK=1)" >&2
+    return 1
 }
 
 # Fail before generating PDFs we would otherwise commit in a degraded state.

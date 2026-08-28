@@ -6,15 +6,14 @@ draft = false
 [taxonomies]
 tags = ["rust", "zotero", "typst", "writing"]
 categories = ["programming"]
+series = ["Citations on a blog"]
 
 [extra]
 skip_audio = true
 toc = true
-# This post teaches the @citekey syntax, so its code blocks are full of them. The
-# processor is not code-block aware and would rewrite the examples into rendered
-# citations. See scripts note in TODO.md.
-skip_citations = true
 changelog = [
+    { date = 2026-08-28, description = "Moved into its own series, Citations on a blog, and gained a follow-up on resolving citations against crossref." },
+    { date = 2026-08-28, description = "Dropped the hand-maintained series footer; the series banner at the top of the post replaces it." },
     { date = 2026-08-11, description = "Updated for Zola 0.23: shortcodes and Tera macros replaced by components." },
 ]
 +++
@@ -285,7 +284,3 @@ Blog posts with citations are better blog posts. When I write "production costs 
 Academic writing tools make this easy but are terrible for web publishing. Blogging tools are great for the web but ignore citations entirely. Bridging the gap took a small Rust CLI and some Tera components. The pieces were all there -- they just needed connecting.
 
 The code for `zotero-cite` is [on GitHub](https://github.com/EmilLindfors/zotero-cite). If you use Zotero and a static site generator, it might save you some time.
-
----
-
-*This post is part of a series on the infrastructure behind this blog. See also: [Site overview](/blog/building-a-personal-blog-with-zola/), [Self-hosted newsletter](/blog/self-hosted-newsletter/), [Typst PDF generation](/blog/typst-for-blogging/), [Images](/blog/images-on-a-static-site/).*

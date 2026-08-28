@@ -6,6 +6,7 @@ draft = false
 [taxonomies]
 tags = ["llm", "opentelemetry", "observability", "codex", "openrouter"]
 categories = ["programming"]
+series = ["Coding agents and what they cost"]
 
 [extra]
 skip_audio = true

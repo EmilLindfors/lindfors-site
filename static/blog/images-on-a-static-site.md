@@ -232,7 +232,3 @@ If `featured_image` isn't set, the post renders exactly as before -- text only. 
 The featured image on this post was generated with [Qwen-Image-2.0](https://qwen.ai/blog?id=qwen-image-2.0), Alibaba's open-source image generation model released in February 2026. It supports native 2K resolution and handles text rendering well, which makes it useful for generating decorative hero images when you don't have a photograph that fits.
 
 For a technical blog, most images will be screenshots, diagrams, or photographs of actual hardware. But for posts like this one -- where the topic is abstract -- an AI-generated image works as a visual anchor without misrepresenting anything. The image went through the same `img-optim` pipeline as any other: generated at high resolution, then converted to a 1200px WebP with a 600px thumbnail.
-
----
-
-*This post is part of a series on the infrastructure behind this blog. See also: [Site overview](https://lindfors.no/blog/building-a-personal-blog-with-zola/), [Self-hosted newsletter](https://lindfors.no/blog/self-hosted-newsletter/), [Citations](https://lindfors.no/blog/citations-on-a-static-site/), [Typst PDF generation](https://lindfors.no/blog/typst-for-blogging/).*

@@ -275,7 +275,3 @@ Blog posts with citations are better blog posts. When I write "production costs 
 Academic writing tools make this easy but are terrible for web publishing. Blogging tools are great for the web but ignore citations entirely. Bridging the gap took a small Rust CLI and some Tera components. The pieces were all there -- they just needed connecting.
 
 The code for `zotero-cite` is [on GitHub](https://github.com/EmilLindfors/zotero-cite). If you use Zotero and a static site generator, it might save you some time.
-
----
-
-*This post is part of a series on the infrastructure behind this blog. See also: [Site overview](https://lindfors.no/blog/building-a-personal-blog-with-zola/), [Self-hosted newsletter](https://lindfors.no/blog/self-hosted-newsletter/), [Typst PDF generation](https://lindfors.no/blog/typst-for-blogging/), [Images](https://lindfors.no/blog/images-on-a-static-site/).*

@@ -361,7 +361,3 @@ None of these are blockers. The output quality is excellent and the developer ex
 | Code font | JetBrains Mono |
 
 The blog post template, CV source, and build tooling are all in the [site repo](https://github.com/emillindfors/lindfors-site). If you're using Zola (or any static site generator) and want auto-generated PDFs, `tools/site-tools/src/pdf.rs` is the piece to look at -- it's generic enough to adapt.
-
----
-
-*This post is part of a series on the infrastructure behind this blog. See also: [Site overview](https://lindfors.no/blog/building-a-personal-blog-with-zola/), [Self-hosted newsletter](https://lindfors.no/blog/self-hosted-newsletter/), [Citations](https://lindfors.no/blog/citations-on-a-static-site/), [Images](https://lindfors.no/blog/images-on-a-static-site/).*

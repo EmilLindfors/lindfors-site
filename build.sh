@@ -5,6 +5,7 @@
 # The heavy lifting lives in tools/site-tools (Rust); this script is orchestration.
 # This is the single definition of a build -- deploy.sh runs it and then pushes.
 # SKIP_PDFS=1 builds the site without touching the CV or post PDFs.
+# SKIP_IMAGE_CHECK=1 builds with an unconverted image still under content/.
 # SKIP_AUDIO=1 builds without synthesising audio (it is skipped anyway when the TTS
 # endpoint is unreachable or nothing changed).
 
@@ -20,7 +21,14 @@ if [ -z "$SKIP_PDFS" ]; then
     preflight_pdfs "$SCRIPT_DIR" || exit 1
 fi
 
-# Needs a local Zotero library, so a failure here is a warning rather than fatal.
+if [ -z "$SKIP_IMAGE_CHECK" ]; then
+    preflight_images "$SCRIPT_DIR" || exit 1
+fi
+
+# Resolves the @key / [@key] markers in posts and writes the result into their own
+# frontmatter, so this is a no-op once a post's citations are resolved -- the steady
+# state needs neither the network nor a Zotero library. An unresolvable key is warned
+# about and left in the text; a failure here is not fatal.
 # site-tools walks content/blog/ itself and honours extra.skip_citations.
 echo "Processing citations..."
 "$SITE_TOOLS" cite all || echo "  Warning: citation processing failed"

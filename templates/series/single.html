@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}{{ term.name }} | {{ config.title }}{% endblock %}
+
+{% block description %}{{ term.name }} — a {{ term.pages | length }}-part series on {{ config.title }}.{% endblock %}
+
+{% block canonical %}{{ term.permalink | safe }}{% endblock %}
+
+{% block opengraph %}
+<meta property="og:title" content="{{ term.name }}">
+<meta property="og:description" content="A {{ term.pages | length }}-part series on {{ config.title }}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ term.permalink | safe }}">
+{% if config.extra.og_image %}
+<meta property="og:image" content="{{ config.base_url | safe }}{{ config.extra.og_image }}">
+{% endif %}
+{% endblock opengraph %}
+
+{# Same rule as taxonomy_single.html: a one-post series is a page with nothing on it
+   the post does not already have. #}
+{% block robots %}
+{% if term.pages | length < 2 %}
+<meta name="robots" content="noindex, follow">
+{% endif %}
+{% endblock robots %}
+
+{% block content %}
+<section class="section-header">
+    <h1>{{ term.name }}</h1>
+    <p class="section-description">{{ term.pages | length }} part{% if term.pages | length != 1 %}s{% endif %}, in reading order</p>
+</section>
+
+{# Through the same component as the banner, so this page and the "next" link on a
+   post cannot disagree about the order. #}
+{{<series.parts name={term.name} />}}
+
+<p class="series-back"><a href="{{ config.base_url | safe }}/series/">All series</a></p>
+{% endblock %}

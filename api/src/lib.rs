@@ -1061,6 +1061,7 @@ async fn handle_subscribe(mut req: Request, ctx: RouteContext<()>) -> Result<Res
             // The address is deliberately absent from this line. The log records that a
             // confirmation went out, not who is mid-signup.
             console_log!("Confirmation email sent");
+            log_event(&ctx.env, Event::Requested, &email).await;
             json_response(
                 &ApiResponse {
                     success: true,
@@ -1170,6 +1171,7 @@ async fn handle_unsubscribe_post(mut req: Request, ctx: RouteContext<()>) -> Res
         return match jmap_set_recipient(&ListConfig::from_env(&ctx.env)?, &email, false).await {
             Ok(()) => {
                 console_log!("Unsubscribed via signed link");
+                log_event(&ctx.env, Event::Unsubscribed, &email).await;
                 // HTML, even for the one-click POST. RFC 8058 says the response body is
                 // never shown to the user, so a page costs the machine nothing and is
                 // what the human pressing the button needs.
@@ -1217,14 +1219,17 @@ async fn handle_unsubscribe_post(mut req: Request, ctx: RouteContext<()>) -> Res
     }
 
     match jmap_set_recipient(&ListConfig::from_env(&ctx.env)?, &email, false).await {
-        Ok(()) => json_response(
-            &ApiResponse {
-                success: true,
-                error: None,
-            },
-            200,
-            headers,
-        ),
+        Ok(()) => {
+            log_event(&ctx.env, Event::Unsubscribed, &email).await;
+            json_response(
+                &ApiResponse {
+                    success: true,
+                    error: None,
+                },
+                200,
+                headers,
+            )
+        }
         Err(e) => {
             // The upstream detail goes to `wrangler tail`, not to the caller: this is a
             // public endpoint and the detail names an authenticated JMAP method.
@@ -1250,12 +1255,32 @@ fn extract_bearer_token(req: &Request) -> Option<String> {
         .and_then(|v| v.strip_prefix("Bearer ").map(|t| t.to_string()))
 }
 
+/// Compare a presented token against a secret without leaking where they diverge.
+///
+/// `a != b` on `String` stops at the first differing byte. Behind Cloudflare, against a
+/// random secret, the timing channel that opens up is theoretical rather than
+/// practical — but this is an authorization check with two call sites, and the version
+/// that does not have to be argued about costs four lines.
+///
+/// The length is not secret: an attacker who can send requests can measure it anyway,
+/// and comparing to a fixed length would leak it through the early return instead.
+fn token_matches(presented: &str, secret: &str) -> bool {
+    if presented.len() != secret.len() {
+        return false;
+    }
+    presented
+        .bytes()
+        .zip(secret.bytes())
+        .fold(0u8, |acc, (a, b)| acc | (a ^ b))
+        == 0
+}
+
 /// GET /api/subscribers — admin: list current subscribers from Stalwart.
 async fn handle_subscribers(req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let admin_key = ctx.env.secret("ADMIN_KEY")?.to_string();
     let token = extract_bearer_token(&req).unwrap_or_default();
 
-    if token != admin_key {
+    if !token_matches(&token, &admin_key) {
         return json_response(
             &ApiResponse {
                 success: false,
@@ -1287,12 +1312,324 @@ async fn handle_subscribers(req: Request, ctx: RouteContext<()>) -> Result<Respo
     Ok(resp)
 }
 
+// ---------------------------------------------------------------------------
+// Event log
+// ---------------------------------------------------------------------------
+//
+// One file per event in a WebDAV collection, recording that *someone* subscribed,
+// confirmed or unsubscribed, and when. The address is stored as an HMAC rather than
+// in the clear, so the log on its own identifies nobody: it answers "how many
+// confirmed in March", "is this address churning on and off", and "did the holder of
+// this address consent, and when" (recompute the hash and look), without ever being a
+// list of people who used to be subscribers.
+//
+// **Its own secret, not CONFIRM_SECRET.** That one is designed to be rotated -- it is
+// the entire revocation story for pending confirmation links -- and a rotation would
+// silently orphan every event ever written, leaving a log whose old entries can never
+// be matched to anything again. EVENT_LOG_SECRET is meant to be stable for the life of
+// the log.
+//
+// **This fails open, unlike the send-log claim.** Sending twice is worse than not
+// sending, so that gate refuses on doubt. Refusing someone's unsubscribe because an
+// audit trail could not be written is indefensible, so a logging failure here is a
+// console error and nothing more.
+
+/// A subscriber-lifecycle event worth recording.
+#[derive(Clone, Copy)]
+enum Event {
+    /// `/api/subscribe` accepted an address and mailed it a confirmation link.
+    Requested,
+    /// A confirmation link was clicked; the address joined the list.
+    Confirmed,
+    /// An address left, by link, by one-click, or by typing it into the form.
+    Unsubscribed,
+}
+
+impl Event {
+    fn as_str(self) -> &'static str {
+        match self {
+            Event::Requested => "requested",
+            Event::Confirmed => "confirmed",
+            Event::Unsubscribed => "unsubscribed",
+        }
+    }
+}
+
+/// The stable pseudonym for an address.
+///
+/// Truncated to 16 hex characters: long enough that a collision is not a practical
+/// concern at this scale, short enough to read in a filename. Preimage resistance comes
+/// from the secret, not the length -- an address space small enough to enumerate would
+/// be trivially reversible at any length without it.
+fn event_subject(secret: &str, email: &str) -> String {
+    sign(secret, &format!("event:v1:{email}"))
+        .chars()
+        .take(16)
+        .collect()
+}
+
+/// The file one event is written to.
+///
+/// Deterministic rather than random: the same event for the same address in the same
+/// second is the same file, so a double-clicked confirmation link overwrites itself
+/// instead of logging twice. Sorting by name sorts by time, which is what makes
+/// PROPFIND output readable.
+fn event_key(at: &str, event: Event, subject: &str) -> String {
+    let safe: String = at
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    format!("{safe}-{}-{subject}.json", event.as_str())
+}
+
+/// Record an event. Never fails the operation that triggered it.
+async fn log_event(env: &Env, event: Event, email: &str) {
+    let (Ok(base), Ok(secret)) = (
+        env.var("EVENT_LOG_URL").map(|v| v.to_string()),
+        env.secret("EVENT_LOG_SECRET").map(|v| v.to_string()),
+    ) else {
+        // Absent config means the log is not set up yet. Say so once per call rather
+        // than failing a subscribe over it.
+        console_error!("Event log not configured; {} not recorded", event.as_str());
+        return;
+    };
+
+    let (Ok(user), Ok(password)) = (
+        env.var("JMAP_LIST_USER").map(|v| v.to_string()),
+        env.secret("JMAP_LIST_PASSWORD").map(|v| v.to_string()),
+    ) else {
+        console_error!("Event log has no credentials; {} not recorded", event.as_str());
+        return;
+    };
+
+    let at = now_string();
+    let subject = event_subject(&secret, email);
+    let url = format!(
+        "{}/{}",
+        base.trim_end_matches('/'),
+        event_key(&at, event, &subject)
+    );
+    let body = serde_json::json!({
+        "event": event.as_str(),
+        "subject": subject,
+        "at": at,
+    })
+    .to_string();
+
+    let credentials = basic_credential(&user, &password);
+    match send_log_request(&url, Method::Put, &credentials, Some(body), false).await {
+        Ok(201) | Ok(204) => {}
+        // WebDAV creates no intermediate collections. Make it once, then retry.
+        Ok(409) => {
+            let _ = send_log_request(
+                &base,
+                Method::from("MKCOL".to_string()),
+                &credentials,
+                None,
+                false,
+            )
+            .await;
+            if let Err(e) = send_log_request(&url, Method::Put, &credentials, None, false).await {
+                console_error!("Event log write failed after MKCOL: {}", e);
+            }
+        }
+        Ok(other) => console_error!("Event log answered {} for {}", other, event.as_str()),
+        Err(e) => console_error!("Event log write failed: {}", e),
+    }
+}
+
+/// Outcome of trying to claim a slug for sending.
+enum Claim {
+    /// Nothing had sent this issue. The claim is now ours.
+    Won,
+    /// A claim file already existed, so someone sent it.
+    AlreadySent,
+    /// The log could not be reached, so we cannot tell. Fails closed.
+    Unavailable(String),
+}
+
+/// The claim body, written before the send and overwritten with the report after.
+///
+/// `status` tells a later reader the difference between an issue that went out and one
+/// that claimed the slug and then died mid-send. `at` is what makes the log answer the
+/// question anyone actually asks of it -- when did this go out -- and `failed` is what
+/// makes a partial send recoverable instead of a dead end: the claim refuses a retry, so
+/// without the addresses written down the only way to finish the job is to delete the
+/// record and mail everyone again.
+///
+/// Serialized rather than formatted. An address reaches this only after the subscribe
+/// validator, so it cannot carry a quote today, but hand-building JSON around
+/// user-supplied strings is a bad habit to keep.
+fn claim_body(
+    slug: &str,
+    recipients: usize,
+    status: &str,
+    sent: usize,
+    failed: &[String],
+    at: &str,
+) -> String {
+    serde_json::json!({
+        "slug": slug,
+        "status": status,
+        "at": at,
+        "recipients": recipients,
+        "sent": sent,
+        "failed": failed,
+    })
+    .to_string()
+}
+
+/// Now, as an RFC 2822 string. Workers has no `std::time` clock.
+fn now_string() -> String {
+    Date::now().to_string()
+}
+
+/// The URL one issue's claim lives at, under the configured collection.
+fn send_log_url(base: &str, slug: &str) -> String {
+    format!("{}/{}.json", base.trim_end_matches('/'), slug)
+}
+
+/// Send one authenticated request to the send-log collection.
+async fn send_log_request(
+    url: &str,
+    method: Method,
+    credentials: &str,
+    body: Option<String>,
+    if_none_match: bool,
+) -> std::result::Result<u16, String> {
+    let headers = Headers::new();
+    headers
+        .set("Authorization", &format!("Basic {credentials}"))
+        .map_err(|e| e.to_string())?;
+    if body.is_some() {
+        headers
+            .set("Content-Type", "application/json")
+            .map_err(|e| e.to_string())?;
+    }
+    // The whole mechanism: Stalwart parses this into `Condition::Exists { is_not: true }`
+    // and answers 412 when the resource is already there.
+    if if_none_match {
+        headers.set("If-None-Match", "*").map_err(|e| e.to_string())?;
+    }
+
+    let mut init = RequestInit::new();
+    init.with_method(method).with_headers(headers);
+    if let Some(body) = body {
+        init.with_body(Some(body.into()));
+    }
+
+    let req = Request::new_with_init(url, &init).map_err(|e| e.to_string())?;
+    Fetch::Request(req)
+        .send()
+        .await
+        .map(|resp| resp.status_code())
+        .map_err(|e| e.to_string())
+}
+
+/// Claim `slug`, or report that something already has.
+///
+/// The claim is a `PUT` with `If-None-Match: *` against a WebDAV collection on the same
+/// Stalwart this newsletter already sends through. That matters for more than tidiness:
+/// the send path is already wholly dependent on that server, so the guard adds no new
+/// failure domain. Stalwart's JMAP registry cannot hold this — no `ifInState`, closed
+/// property schema — but its WebDAV layer implements the HTTP precondition, which is the
+/// same compare-and-swap by a different door.
+async fn claim_send(env: &Env, slug: &str, recipients: usize) -> Claim {
+    let (base, credentials) = match send_log_config(env) {
+        Ok(v) => v,
+        Err(e) => return Claim::Unavailable(e),
+    };
+    let url = send_log_url(&base, slug);
+    let body = claim_body(slug, recipients, "sending", 0, &[], &now_string());
+
+    let status = match send_log_request(&url, Method::Put, &credentials, Some(body.clone()), true)
+        .await
+    {
+        Ok(s) => s,
+        Err(e) => return Claim::Unavailable(e),
+    };
+
+    match status {
+        201 | 204 => Claim::Won,
+        412 => Claim::AlreadySent,
+        // WebDAV does not create intermediate collections, so the first ever send hits a
+        // 409 for a collection that is not there yet. Make it once, then retry.
+        409 => {
+            if let Err(e) =
+                send_log_request(&base, Method::from("MKCOL".to_string()), &credentials, None, false)
+                    .await
+            {
+                return Claim::Unavailable(format!("MKCOL {base} failed: {e}"));
+            }
+            match send_log_request(&url, Method::Put, &credentials, Some(body), true).await {
+                Ok(201) | Ok(204) => Claim::Won,
+                Ok(412) => Claim::AlreadySent,
+                Ok(other) => Claim::Unavailable(format!("PUT after MKCOL answered {other}")),
+                Err(e) => Claim::Unavailable(e),
+            }
+        }
+        401 | 403 => Claim::Unavailable(format!(
+            "{status} from the send log — JMAP_LIST_USER needs DAV access to {base}"
+        )),
+        other => Claim::Unavailable(format!("send log answered {other}")),
+    }
+}
+
+/// Overwrite the claim with what actually happened.
+///
+/// Unconditional: the claim above is the gate, and this is the report. A failure here
+/// leaves the file saying `sending`, which still refuses a retry — the conservative
+/// direction, and visible to anyone reading the collection.
+async fn record_send(
+    env: &Env,
+    slug: &str,
+    recipients: usize,
+    sent: usize,
+    failed: &[String],
+    ok: bool,
+) {
+    let Ok((base, credentials)) = send_log_config(env) else {
+        return;
+    };
+    let status = if ok { "sent" } else { "partial" };
+    let body = claim_body(slug, recipients, status, sent, failed, &now_string());
+
+    if let Err(e) = send_log_request(
+        &send_log_url(&base, slug),
+        Method::Put,
+        &credentials,
+        Some(body),
+        false,
+    )
+    .await
+    {
+        console_error!("Could not update the send log for {}: {}", slug, e);
+    }
+}
+
+/// The send-log collection URL and the credential to reach it with.
+fn send_log_config(env: &Env) -> std::result::Result<(String, String), String> {
+    let base = env
+        .var("SEND_LOG_URL")
+        .map_err(|_| "SEND_LOG_URL is not set".to_string())?
+        .to_string();
+    let user = env
+        .var("JMAP_LIST_USER")
+        .map_err(|_| "JMAP_LIST_USER is not set".to_string())?
+        .to_string();
+    let password = env
+        .secret("JMAP_LIST_PASSWORD")
+        .map_err(|_| "JMAP_LIST_PASSWORD is not set".to_string())?
+        .to_string();
+    Ok((base, basic_credential(&user, &password)))
+}
+
 /// POST /api/send-newsletter — admin: send a newsletter to the mailing list via JMAP.
 async fn handle_send_newsletter(mut req: Request, ctx: RouteContext<()>) -> Result<Response> {
     let admin_key = ctx.env.secret("ADMIN_KEY")?.to_string();
     let token = extract_bearer_token(&req).unwrap_or_default();
 
-    if token != admin_key {
+    if !token_matches(&token, &admin_key) {
         return json_response(
             &ApiResponse {
                 success: false,
@@ -1415,6 +1752,63 @@ async fn handle_send_newsletter(mut req: Request, ctx: RouteContext<()>) -> Resu
         );
     }
 
+    // Claim the slug before a single message goes out.
+    //
+    // Nothing else records that an issue has been sent, so before this the only guard
+    // against a double send was the interactive y/N in site-tools -- which is exactly
+    // what automation removes. The failure this exists for is a send that succeeds and
+    // whose response is lost, followed by a retry.
+    //
+    // A conditional PUT is the claim: R2 stores the object only if none exists, and
+    // returns `None` when one does. That is compare-and-swap at the granularity the
+    // problem has, one object per issue. Stalwart cannot hold this -- its JMAP registry
+    // has no `ifInState` and a closed property schema -- and Workers KV is eventually
+    // consistent, which loses the race exactly when it matters.
+    match claim_send(&ctx.env, &body.slug, recipients.len()).await {
+        Claim::Won => {}
+        Claim::AlreadySent => {
+            console_log!("Refusing to send {}: already claimed", body.slug);
+            return json_response_value(
+                &SendResponse {
+                    success: false,
+                    sent: 0,
+                    failed: vec![],
+                    error: Some(format!(
+                        "{} has already been sent. Delete {} to send it again.",
+                        body.slug,
+                        send_log_url(
+                            &ctx.env
+                                .var("SEND_LOG_URL")
+                                .map(|v| v.to_string())
+                                .unwrap_or_default(),
+                            &body.slug
+                        )
+                    )),
+                },
+                409,
+                cors_headers(&req)?,
+            );
+        }
+        // Fails closed, like rate_limit_allows: a missing binding or an R2 outage stops
+        // the send rather than waving it through unguarded. A newsletter going out late
+        // is recoverable; one going out twice is not.
+        Claim::Unavailable(why) => {
+            console_error!("Refusing to send {}: send log unavailable: {}", body.slug, why);
+            return json_response_value(
+                &SendResponse {
+                    success: false,
+                    sent: 0,
+                    failed: vec![],
+                    error: Some(format!(
+                        "Send log unavailable, refusing to send unguarded: {why}"
+                    )),
+                },
+                503,
+                cors_headers(&req)?,
+            );
+        }
+    }
+
     let sender = SenderConfig::from_env(&ctx.env)?;
     let secret = ctx.env.secret("CONFIRM_SECRET")?.to_string();
 
@@ -1455,6 +1849,11 @@ async fn handle_send_newsletter(mut req: Request, ctx: RouteContext<()>) -> Resu
     // A partial send is reported as a failure, not a success with a footnote. It
     // needs someone to look at it, and the CLI keys off the HTTP status.
     let all_ok = failed.is_empty();
+
+    // Turn the claim into a report. The claim already refuses a retry either way; this
+    // is what tells whoever reads the log later whether the issue actually went out.
+    record_send(&ctx.env, &body.slug, recipients.len(), sent, &failed, all_ok).await;
+
     json_response_value(
         &SendResponse {
             success: all_ok,
@@ -1623,6 +2022,8 @@ async fn handle_confirm(mut req: Request, ctx: RouteContext<()>) -> Result<Respo
     match jmap_set_recipient(&list, &token.email, true).await {
         Ok(()) => {
             console_log!("Subscription confirmed");
+            log_event(&ctx.env, Event::Confirmed, &token.email).await;
+            send_welcome(&ctx.env, &token.email).await;
             Response::from_html(page_shell(
                 "You are subscribed",
                 r#"<h1>You&rsquo;re subscribed</h1>
@@ -1773,6 +2174,149 @@ fn confirmation_email_template(confirm_url: &str, site_url: &str) -> String {
     )
 }
 
+/// Mail the welcome message. Never fails the confirmation that triggered it.
+///
+/// The subscription is already saved by the time this runs. Someone who confirmed and
+/// then saw an error because a second email could not be sent would reasonably conclude
+/// they are not subscribed, and try again — so this reports to the log and returns.
+async fn send_welcome(env: &Env, email: &str) {
+    let (Ok(site_url), Ok(secret)) = (
+        env.var("SITE_URL").map(|v| v.to_string()),
+        env.secret("CONFIRM_SECRET").map(|v| v.to_string()),
+    ) else {
+        console_error!("Welcome mail skipped: SITE_URL or CONFIRM_SECRET missing");
+        return;
+    };
+
+    let sender = match SenderConfig::from_env(env) {
+        Ok(s) => s,
+        Err(e) => {
+            console_error!("Welcome mail skipped: {}", e);
+            return;
+        }
+    };
+
+    let unsubscribe_url =
+        unsubscribe_link(&site_url, email, &unsubscribe_signature(&secret, email));
+    let posts = recent_posts(&site_url).await;
+    let html = welcome_email_template(&site_url, &unsubscribe_url, &recent_posts_html(&posts));
+
+    match jmap_send_email(
+        &sender,
+        email,
+        "Welcome to lindfors.no",
+        &html,
+        Some(&unsubscribe_url),
+    )
+    .await
+    {
+        // No address in the log line, matching the confirmation send above.
+        Ok(()) => console_log!("Welcome mail sent"),
+        Err(e) => console_error!("Welcome mail failed: {}", e),
+    }
+}
+
+/// A post as `static/newsletter/recent.json` lists it.
+#[derive(Deserialize)]
+struct RecentPost {
+    title: String,
+    url: String,
+    #[serde(default)]
+    description: String,
+}
+
+/// The most recent posts, for the welcome mail to list.
+///
+/// Fetched from a file the build writes rather than parsed out of `atom.xml` or
+/// `llms.txt`: those are formats with their own audiences, and an email quietly breaking
+/// because one of them was reformatted is a bad trade. Returns an empty list on any
+/// failure, because a welcome mail without a post list is a great deal better than no
+/// welcome mail.
+async fn recent_posts(site_url: &str) -> Vec<RecentPost> {
+    let url = format!("{site_url}/newsletter/recent.json");
+    let fetched = async {
+        let req = Request::new(&url, Method::Get).ok()?;
+        let mut resp = Fetch::Request(req).send().await.ok()?;
+        if resp.status_code() != 200 {
+            console_error!("recent.json answered {}", resp.status_code());
+            return None;
+        }
+        serde_json::from_str::<Vec<RecentPost>>(&resp.text().await.ok()?).ok()
+    }
+    .await;
+
+    match fetched {
+        Some(posts) => posts,
+        None => {
+            console_error!("Could not read recent.json; welcome mail will list no posts");
+            Vec::new()
+        }
+    }
+}
+
+/// The post list, as HTML for the welcome mail. Empty when there is nothing to list.
+fn recent_posts_html(posts: &[RecentPost]) -> String {
+    if posts.is_empty() {
+        return String::new();
+    }
+
+    let mut out = String::from(
+        r#"<h2 style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 17px; color: #1C3240; margin: 32px 0 12px 0;">Recent posts</h2>"#,
+    );
+    for post in posts {
+        out.push_str(&format!(
+            r#"<p style="margin: 0 0 14px 0;"><a href="{url}" style="color: #D4706A; text-decoration: none; font-size: 16px; font-weight: 600;">{title}</a><br><span style="color: #5A7078; font-size: 14px; line-height: 1.6;">{description}</span></p>"#,
+            url = html_escape(&post.url),
+            title = html_escape(&post.title),
+            description = html_escape(&post.description),
+        ));
+    }
+    out
+}
+
+/// The first message a confirmed subscriber gets.
+///
+/// Sent after confirmation rather than on the subscribe request: at that point the
+/// address is unverified and has just been mailed a link, and two messages in a row for
+/// one action is how a signup starts looking like spam.
+///
+/// It carries `List-Unsubscribe` like any list mail. A welcome is arguably
+/// transactional, but it is the first of a series someone can leave, and the whole
+/// argument of the one-click work is that leaving should never be harder than one press.
+fn welcome_email_template(site_url: &str, unsubscribe_url: &str, posts_html: &str) -> String {
+    let unsub = html_escape(unsubscribe_url);
+    format!(
+        r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>You are subscribed</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #F0EAE0; font-family: Georgia, 'Times New Roman', serif;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 32px 24px; background-color: #ffffff;">
+        <div style="border-bottom: 2px solid #2A8F82; padding-bottom: 16px; margin-bottom: 24px;">
+            <a href="{site_url}" style="color: #1C3240; text-decoration: none; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; font-weight: 600;">lindfors.no</a>
+        </div>
+        <h1 style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 24px; color: #1C3240; margin: 0 0 16px 0; line-height: 1.3;">You are on the list</h1>
+        <p style="color: #1C3240; font-size: 17px; line-height: 1.7; margin: 0 0 16px 0;">Thanks for confirming. You will get new posts from lindfors.no by email &mdash; mostly Rust, aquaculture, sensors, and whatever I have recently broken and had to fix.</p>
+        <p style="color: #1C3240; font-size: 17px; line-height: 1.7; margin: 0 0 24px 0;">There is no schedule. Posts go out when they are written, which has been every few weeks and sometimes not for a couple of months. No other mail, ever, and the list is not shared with anyone.</p>
+        {posts_html}
+        <p style="margin: 0 0 24px 0;">
+            <a href="{site_url}/blog/" style="display: inline-block; background-color: #D4706A; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 15px; font-weight: 600;">Read the archive</a>
+        </p>
+        <div style="border-top: 2px solid #2A8F82; margin-top: 32px; padding-top: 16px;">
+            <p style="color: #5A7078; font-size: 13px; line-height: 1.6; margin: 0;">Changed your mind already? <a href="{unsub}" style="color: #5A7078;">Unsubscribe</a> &mdash; one click, no questions, and it works from any message I send.</p>
+        </div>
+    </div>
+</body>
+</html>"#,
+        site_url = site_url,
+        unsub = unsub,
+        posts_html = posts_html,
+    )
+}
+
 /// GET /api/unsubscribe — the address is typed here rather than carried in a signed
 /// link because a single message is fanned out to the list by Stalwart, so the Worker
 /// never sees an individual recipient to mint a per-subscriber link for.
@@ -1832,6 +2376,245 @@ mod tests {
     use super::*;
 
     const SECRET: &str = "test-secret-not-the-real-one";
+
+    /// The welcome mail is list mail: it has to carry a working way out, and the
+    /// address must not leak into the page as raw HTML.
+    #[test]
+    fn the_welcome_mail_carries_an_unsubscribe_link() {
+        let url = unsubscribe_link(
+            "https://lindfors.no",
+            "someone@example.com",
+            &unsubscribe_signature(SECRET, "someone@example.com"),
+        );
+        let html = welcome_email_template("https://lindfors.no", &url, "");
+        assert!(html.contains(&html_escape(&url)));
+        assert!(html.contains("Unsubscribe"));
+        assert!(html.contains("https://lindfors.no/blog/"));
+    }
+
+    /// An unsubscribe URL is built from an address, so it reaches a template as
+    /// attacker-influenced text. It must be escaped, not interpolated raw.
+    #[test]
+    fn the_welcome_mail_escapes_its_link() {
+        let html = welcome_email_template("https://lindfors.no", "https://x/?e=a\"><script>", "");
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("&quot;") || html.contains("&lt;"));
+    }
+
+    fn post(title: &str, url: &str, description: &str) -> RecentPost {
+        RecentPost {
+            title: title.into(),
+            url: url.into(),
+            description: description.into(),
+        }
+    }
+
+    /// The list is what the reader is here for; it has to render and to link.
+    #[test]
+    fn the_welcome_mail_lists_recent_posts() {
+        let posts = vec![
+            post("A post", "https://lindfors.no/blog/a/", "About a thing"),
+            post("Another", "https://lindfors.no/blog/b/", ""),
+        ];
+        let html = welcome_email_template("https://lindfors.no", "u", &recent_posts_html(&posts));
+        assert!(html.contains("Recent posts"));
+        assert!(html.contains("https://lindfors.no/blog/a/"));
+        assert!(html.contains("A post"));
+        assert!(html.contains("About a thing"));
+        assert!(html.contains("Another"));
+    }
+
+    /// A failed fetch must produce a welcome mail without a list, not a broken heading
+    /// over nothing.
+    #[test]
+    fn no_posts_means_no_section() {
+        assert_eq!(recent_posts_html(&[]), "");
+        let html = welcome_email_template("https://lindfors.no", "u", "");
+        assert!(!html.contains("Recent posts"));
+        assert!(html.contains("You are on the list"));
+    }
+
+    /// Titles are authored text and reach the mail as HTML.
+    #[test]
+    fn post_titles_are_escaped() {
+        let posts = vec![post("Tom & Jerry <script>", "https://x/?a=1&b=2", "a < b")];
+        let html = recent_posts_html(&posts);
+        assert!(!html.contains("<script>"));
+        assert!(html.contains("Tom &amp; Jerry"));
+        assert!(html.contains("a &lt; b"));
+    }
+
+    /// The shape site-tools writes has to be the shape the Worker reads.
+    #[test]
+    fn recent_json_parses_as_the_build_writes_it() {
+        let src = r#"[
+  {"title": "A post", "url": "https://lindfors.no/blog/a/", "date": "2026-08-28", "description": "About a thing"}
+]"#;
+        let posts: Vec<RecentPost> = serde_json::from_str(src).expect("parses");
+        assert_eq!(posts.len(), 1);
+        assert_eq!(posts[0].title, "A post");
+        assert_eq!(posts[0].description, "About a thing");
+    }
+
+    /// The pseudonym is stable for an address and different for another, which is the
+    /// whole of what the log needs from it.
+    #[test]
+    fn event_subjects_are_stable_and_distinct() {
+        let a = event_subject(SECRET, "someone@example.com");
+        let b = event_subject(SECRET, "someone@example.com");
+        let c = event_subject(SECRET, "other@example.com");
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+        assert_eq!(a.len(), 16);
+    }
+
+    /// It is a pseudonym, not an obfuscation: without the secret the same address
+    /// hashes to something else entirely, which is what stops the log being reversible
+    /// by anyone who gets a copy of it.
+    #[test]
+    fn the_subject_depends_on_the_secret() {
+        assert_ne!(
+            event_subject(SECRET, "someone@example.com"),
+            event_subject("a-different-secret", "someone@example.com")
+        );
+    }
+
+    /// The address must not survive into the filename or the body.
+    #[test]
+    fn no_address_reaches_the_log() {
+        let email = "someone@example.com";
+        let subject = event_subject(SECRET, email);
+        let key = event_key("Thu, 28 Aug 2026 09:14:22 GMT", Event::Confirmed, &subject);
+        assert!(!key.contains(email));
+        assert!(!key.contains("someone"));
+        assert!(!key.contains('@'));
+        assert!(key.ends_with(&format!("-confirmed-{subject}.json")));
+    }
+
+    /// Deterministic: a double-clicked confirmation link overwrites its own file rather
+    /// than logging the same event twice.
+    #[test]
+    fn the_same_event_lands_on_the_same_file() {
+        let at = "Thu, 28 Aug 2026 09:14:22 GMT";
+        let subject = event_subject(SECRET, "someone@example.com");
+        assert_eq!(
+            event_key(at, Event::Confirmed, &subject),
+            event_key(at, Event::Confirmed, &subject)
+        );
+        assert_ne!(
+            event_key(at, Event::Confirmed, &subject),
+            event_key(at, Event::Unsubscribed, &subject)
+        );
+    }
+
+    /// Sorting by filename has to sort by time, or PROPFIND output is unreadable.
+    #[test]
+    fn keys_sort_chronologically_within_a_day() {
+        let subject = "abc123";
+        let mut keys = vec![
+            event_key("Thu, 28 Aug 2026 11:00:00 GMT", Event::Confirmed, subject),
+            event_key("Thu, 28 Aug 2026 09:00:00 GMT", Event::Confirmed, subject),
+        ];
+        keys.sort();
+        assert!(keys[0].contains("09-00-00"));
+    }
+
+    /// One file per issue, directly under the configured collection.
+    #[test]
+    fn send_log_urls_sit_under_the_collection() {
+        let base = "https://mail.lindfors.no/dav/file/postmaster/newsletter-sent";
+        assert_eq!(send_log_url(base, "my-post"), format!("{base}/my-post.json"));
+        assert_eq!(send_log_url(base, "a"), format!("{base}/a.json"));
+    }
+
+    /// A trailing slash on the configured URL must not produce a double slash, which
+    /// WebDAV would read as a different (empty-named) resource.
+    #[test]
+    fn a_trailing_slash_on_the_collection_is_absorbed() {
+        let with = "https://mail.lindfors.no/dav/file/postmaster/sent/";
+        let without = "https://mail.lindfors.no/dav/file/postmaster/sent";
+        assert_eq!(send_log_url(with, "x"), send_log_url(without, "x"));
+        assert!(!send_log_url(with, "x").contains("//x"));
+    }
+
+    /// The log has to stay valid JSON and keep the fields a later reader looks for.
+    #[test]
+    fn claim_body_carries_what_the_log_is_for() {
+        let body = claim_body("my-post", 12, "sending", 0, &[], "Thu, 28 Aug 2026 10:00:00 GMT");
+        let v: serde_json::Value = serde_json::from_str(&body).expect("valid JSON");
+        assert_eq!(v["slug"], "my-post");
+        assert_eq!(v["status"], "sending");
+        assert_eq!(v["recipients"], 12);
+        assert_eq!(v["sent"], 0);
+        assert_eq!(v["at"], "Thu, 28 Aug 2026 10:00:00 GMT");
+        assert_eq!(v["failed"], serde_json::json!([]));
+    }
+
+    /// A partial send is the case the log exists to make recoverable: the claim refuses
+    /// a retry, so the addresses that did not get it have to be written down.
+    #[test]
+    fn a_partial_send_records_who_missed_it() {
+        let failed = vec!["a@example.com".to_string(), "b@example.com".to_string()];
+        let body = claim_body("my-post", 12, "partial", 10, &failed, "now");
+        let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(v["status"], "partial");
+        assert_eq!(v["sent"], 10);
+        assert_eq!(v["failed"][0], "a@example.com");
+        assert_eq!(v["failed"][1], "b@example.com");
+    }
+
+    /// Serialized, not formatted: a value that would break hand-built JSON must not.
+    #[test]
+    fn the_body_survives_a_hostile_value() {
+        let failed = vec![r#"a"b\c@example.com"#.to_string()];
+        let body = claim_body("my-post", 1, "partial", 0, &failed, "now");
+        let v: serde_json::Value = serde_json::from_str(&body).expect("still valid JSON");
+        assert_eq!(v["failed"][0], r#"a"b\c@example.com"#);
+    }
+
+    /// A slug reaches this only after the handler's charset check, so it can never
+    /// carry a quote -- but the body is built by hand, so pin that the check is what
+    /// the JSON is relying on.
+    #[test]
+    fn the_slug_charset_is_what_keeps_the_body_safe() {
+        let valid = |s: &str| {
+            !s.is_empty()
+                && s.chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        };
+        assert!(valid("my-post-2026"));
+        assert!(!valid("my\"post"));
+        assert!(!valid("My-Post"));
+        assert!(!valid(""));
+    }
+
+    #[test]
+    fn token_matches_only_an_identical_token() {
+        assert!(token_matches(SECRET, SECRET));
+        assert!(!token_matches("", SECRET));
+        assert!(!token_matches(SECRET, ""));
+        assert!(token_matches("", ""));
+    }
+
+    /// The two ways a near-miss can look: same length and one byte off, or a correct
+    /// prefix of the right token. Both have to be refused.
+    #[test]
+    fn a_near_miss_is_still_a_miss() {
+        let mut off_by_one = SECRET.to_string();
+        off_by_one.pop();
+        off_by_one.push('X');
+        assert!(!token_matches(&off_by_one, SECRET));
+        assert!(!token_matches(&SECRET[..SECRET.len() - 1], SECRET));
+        assert!(!token_matches(&format!("{SECRET}x"), SECRET));
+    }
+
+    /// The compare runs over bytes, so a multi-byte token must not panic or match on a
+    /// partial character boundary.
+    #[test]
+    fn non_ascii_tokens_compare_by_bytes() {
+        assert!(token_matches("nøkkel", "nøkkel"));
+        assert!(!token_matches("nokkel", "nøkkel"));
+    }
 
     fn token(email: &str, exp: u64, secret: &str) -> ConfirmToken {
         ConfirmToken {
