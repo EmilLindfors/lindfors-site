@@ -3,7 +3,7 @@
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
-  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data:; font-src 'self' https://cdn.jsdelivr.net; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data:; font-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://logs.lindfors.no; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'
 
 /blog/*.md
   Content-Type: text/markdown; charset=utf-8
@@ -35,3 +35,9 @@
 #
 # connect-src 'self' covers the newsletter POST: newsletter_endpoint is /api/subscribe,
 # same origin, proxied to the Worker.
+#
+# logs.lindfors.no is the OpenObserve RUM ingest, and only appears in connect-src: the
+# SDK bundle itself is vendored into static/js/ (scripts/fetch-rum.sh), so script-src
+# stays 'self'. It is gated on extra.rum.enabled in zola.toml -- the host is named here
+# whether or not the scripts are shipped, because a header that has to be edited in
+# lockstep with a config flag is a header that will be wrong once.

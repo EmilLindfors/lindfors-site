@@ -78,3 +78,38 @@ newsletter_endpoint = "/api/subscribe"
 
 # Default OG image (place a 1200x630 image at static/og-default.png)
 og_image = "/og-default.png"
+
+# Real user monitoring, sent to the self-hosted OpenObserve on logs.lindfors.no.
+# Absent or `enabled = false` ships no script at all, so this is off until an
+# application exists in OpenObserve (Management -> RUM) to fill the two ids in.
+#
+# `client_token` is public by design: a write-only ingest key that appears in the
+# source of every page. It is not a secret and does not belong in wrangler vars.
+# `site` is the ingest *host*, without a scheme -- the SDK builds
+# https://<site>/rum/<api_version>/<organization>/rum itself. Adding a host here
+# means adding it to connect-src in static/_headers too.
+[extra.rum]
+enabled = true
+site = "logs.lindfors.no"
+organization = "default"
+application_id = "lindfors-site"
+client_token = "rumS0CkqQm8C0TQ4jv4"
+service = "lindfors-site"
+env = "production"
+# Percentage of sessions collected. This is applied by static/js/rum.js *before* it
+# fetches the 61 KB SDK, not by the SDK afterwards, so turning it down saves the
+# download for everyone it excludes rather than only the ingest. The SDK's own
+# sessionSampleRate is pinned at 100 for that reason -- sampling in both places
+# would multiply the two rates together.
+session_sample_rate = 100
+
+# Per-resource timing: one ~60-field record for every css, font, image and script on
+# every view, which measured out at 82% of all RUM volume and six of every seven
+# events. On a site whose assets are immutable and cache-busted, that is the same
+# measurement repeated -- the SDK even times its own download. The view events keep
+# first paint, LCP and a resource *count* without it. Turn it on for a week when
+# something specific looks slow, then turn it off again.
+track_resources = false
+# Optional. Set it to something that identifies a deploy if you want errors keyed to
+# one; left empty the SDK simply reports no version.
+version = ""

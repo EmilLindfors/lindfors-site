@@ -185,6 +185,28 @@
 
     <script src="{{ get_url(path='js/theme.js', cachebust=true) }}"></script>
 
+    {% if config.extra.rum.enabled | default(value=false) %}
+    <!-- Real user monitoring. Only the small loader is requested here; it samples
+         first and pulls the vendored SDK bundle itself, after load and on an idle
+         callback, so an unsampled visit costs nothing and a sampled one costs
+         nothing on the critical path. The bundle URL is passed in rather than
+         written as a second <script> so it keeps its cachebust hash. Configuration
+         rides on data- attributes because the CSP allows no inline script; see
+         static/js/rum.js. -->
+    <script defer data-oo-rum
+            src="{{ get_url(path='js/rum.js', cachebust=true) }}"
+            data-bundle="{{ get_url(path='js/openobserve-rum.js', cachebust=true) }}"
+            data-site="{{ config.extra.rum.site }}"
+            data-organization="{{ config.extra.rum.organization }}"
+            data-application-id="{{ config.extra.rum.application_id }}"
+            data-client-token="{{ config.extra.rum.client_token }}"
+            data-service="{{ config.extra.rum.service }}"
+            data-env="{{ config.extra.rum.env }}"
+            data-session-sample-rate="{{ config.extra.rum.session_sample_rate }}"
+            data-track-resources="{{ config.extra.rum.track_resources | default(value=false) }}"
+            data-version="{{ config.extra.rum.version | default(value='') }}"></script>
+    {% endif %}
+
     {% if config.extra.newsletter_endpoint %}
     <script src="{{ get_url(path='js/newsletter.js', cachebust=true) }}"></script>
     {% endif %}
