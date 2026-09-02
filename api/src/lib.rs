@@ -974,7 +974,6 @@ pub async fn main(req: Request, env: Env, _ctx: Context) -> Result<Response> {
         .post_async("/api/confirm", handle_confirm)
         .get_async("/api/unsubscribe", handle_unsubscribe_page)
         .post_async("/api/unsubscribe", handle_unsubscribe_post)
-        .get_async("/api/subscribers", handle_subscribers)
         .post_async("/api/send-newsletter", handle_send_newsletter)
         .options("/api/subscribe", handle_preflight)
         .options("/api/unsubscribe", handle_preflight)
@@ -1275,42 +1274,15 @@ fn token_matches(presented: &str, secret: &str) -> bool {
         == 0
 }
 
-/// GET /api/subscribers — admin: list current subscribers from Stalwart.
-async fn handle_subscribers(req: Request, ctx: RouteContext<()>) -> Result<Response> {
-    let admin_key = ctx.env.secret("ADMIN_KEY")?.to_string();
-    let token = extract_bearer_token(&req).unwrap_or_default();
-
-    if !token_matches(&token, &admin_key) {
-        return json_response(
-            &ApiResponse {
-                success: false,
-                error: Some("Unauthorized".into()),
-            },
-            401,
-            cors_headers(&req)?,
-        );
-    }
-
-    let list = ListConfig::from_env(&ctx.env)?;
-
-    let members = jmap_get_recipients(&list).await.map_err(Error::RustError)?;
-
-    #[derive(Serialize)]
-    struct ListResponse {
-        total: usize,
-        members: Vec<String>,
-    }
-
-    let data = ListResponse {
-        total: members.len(),
-        members,
-    };
-
-    let body = serde_json::to_string(&data).map_err(|e| Error::RustError(e.to_string()))?;
-    let mut resp = Response::ok(body)?;
-    resp.headers_mut().set("Content-Type", "application/json")?;
-    Ok(resp)
-}
+// The subscriber listing used to live here, as `GET /api/subscribers` behind
+// ADMIN_KEY. It moved to the admin service, which reads the mailing list over JMAP
+// directly rather than asking a public Worker to do it -- see admin/README.md. The
+// point was not that the endpoint was weak but that it did not need to be reachable
+// from the internet at all: nothing in the site or the CLI called it, and every reader
+// of it was a person at a keyboard.
+//
+// What is left here is the public list machinery plus `/api/send-newsletter`, which
+// still needs ADMIN_KEY because `site-tools newsletter send` drives it.
 
 // ---------------------------------------------------------------------------
 // Event log
@@ -2413,6 +2385,36 @@ mod tests {
     use super::*;
 
     const SECRET: &str = "test-secret-not-the-real-one";
+
+    /// The event-log filename, pinned as a literal.
+    ///
+    /// Nothing in this repo links this crate to the admin service, but that service
+    /// reads these names and reconstructs the whole subscriber history from them --
+    /// `admin/src/logs.rs` has this same literal in `the_worker_s_filename_parses`.
+    /// Changing the format here without changing it there fails these two tests, which
+    /// is the point: in production it would look like a dashboard that quietly empties
+    /// while the files pile up exactly as before.
+    #[test]
+    fn the_event_filename_is_the_agreed_shape() {
+        assert_eq!(
+            event_key("2026-08-29T12:34:56Z", Event::Confirmed, "a1b2c3d4e5f6a7b8"),
+            "2026-08-29T12-34-56Z-confirmed-a1b2c3d4e5f6a7b8.json"
+        );
+    }
+
+    /// The subject is what makes the log pseudonymous: the address never appears in a
+    /// name, and the same address always gives the same one, so churn is answerable
+    /// without the log ever being a list of people.
+    #[test]
+    fn the_event_subject_is_stable_and_not_the_address() {
+        let subject = event_subject(SECRET, "someone@example.com");
+        assert_eq!(subject, event_subject(SECRET, "someone@example.com"));
+        assert_ne!(subject, event_subject(SECRET, "other@example.com"));
+        assert!(!subject.contains("someone"));
+        // 16 hex characters, which is what the reader validates against.
+        assert_eq!(subject.len(), 16);
+        assert!(subject.chars().all(|c| c.is_ascii_hexdigit()));
+    }
 
     /// The welcome mail is list mail: it has to carry a working way out, and the
     /// address must not leak into the page as raw HTML.
