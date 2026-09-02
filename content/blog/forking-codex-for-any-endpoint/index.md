@@ -1,7 +1,7 @@
 +++
 title = "Forking Codex to talk to any endpoint"
 description = "How we restored the Chat Completions wire API in a Codex fork, so one coding agent drives local Ollama models, OpenRouter, Azure OpenAI with Entra auth, or any EU-hosted provider. The three patches that made it usable, the branch model that keeps the rebases to an hour, and why Baldwin & Clark's design rules say the interface was the thing to fight for."
-date = 2026-08-11
+date = 2026-07-14
 draft = false
 [taxonomies]
 tags = ["rust", "llm", "codex", "openrouter", "ollama", "tooling", "innovation"]

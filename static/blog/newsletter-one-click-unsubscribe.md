@@ -1,7 +1,7 @@
 ---
 title: "My newsletter promised one-click unsubscribe and answered every one with a 400"
 description: "Six months of running a self-hosted newsletter: double opt-in with no database, why one-click unsubscribe forced me to stop using my mail server's fan-out, and an RFC 8058 DKIM requirement that ends in an anticlimax."
-date: 2026-08-28
+date: 2026-05-26
 tags: ["rust", "self-hosting", "email", "cloudflare"]
 author: "Emil Lindfors"
 canonical: https://lindfors.no/blog/newsletter-one-click-unsubscribe/

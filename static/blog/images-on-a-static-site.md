@@ -1,7 +1,7 @@
 ---
 title: "Images on a static site: tradeoffs, limits, and a 150-line Rust optimizer"
 description: "Why images on this blog live in git next to the post instead of in object storage, how many that can hold, the small Rust tool that turns anything into a WebP, and what six months of using it changed."
-date: 2026-02-23
+date: 2026-04-14
 tags: ["zola", "web", "rust"]
 author: "Emil Lindfors"
 canonical: https://lindfors.no/blog/images-on-a-static-site/

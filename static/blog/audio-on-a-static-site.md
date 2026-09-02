@@ -1,7 +1,7 @@
 ---
 title: "Audio on a static site: build-time TTS and the script it reads from"
 description: "This post has an audio version in a clone of my own voice, generated at build time with Fish Audio S2.1 Pro and committed next to the PDFs. What the dyslexia research says, why the pipeline emits a readable script before it makes any sound, the four things the script got wrong, and why the whole thing is shelved for now."
-date: 2026-08-15
+date: 2026-07-28
 tags: ["accessibility", "rust", "zola", "tts"]
 author: "Emil Lindfors"
 canonical: https://lindfors.no/blog/audio-on-a-static-site/

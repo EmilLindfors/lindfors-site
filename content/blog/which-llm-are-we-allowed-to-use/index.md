@@ -1,7 +1,7 @@
 +++
 title = "Exploring LLMs so our customers don't have to"
 description = "Norwegian businesses started asking their consultants this in 2026, after a year of quietly running Claude Code. Two decisions hidden in one question, why the endpoint matters more than the tool, what it actually costs, and what March's explore/exploit dilemma says about how a company ends up on one vendor without ever deciding to."
-date = 2026-08-11
+date = 2026-06-30
 draft = false
 [taxonomies]
 tags = ["ai", "llm", "governance", "gdpr", "consulting", "innovation"]

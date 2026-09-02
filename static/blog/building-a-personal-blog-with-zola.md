@@ -1,7 +1,7 @@
 ---
 title: "Zola has no plugins, so this blog grew a Rust CLI"
 description: "Why the blog runs on Zola, what Zola refuses to do, and how that one refusal decided the shape of everything else: a Rust CLI that owns citations, PDFs, audio and the newsletter, every generated file committed to git, and a build that is one script. Read through organisational path dependence, with four things I would do differently."
-date: 2026-02-11
+date: 2026-01-27
 tags: ["zola", "web", "rust", "self-hosting", "innovation"]
 author: "Emil Lindfors"
 canonical: https://lindfors.no/blog/building-a-personal-blog-with-zola/

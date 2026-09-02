@@ -1,7 +1,7 @@
 +++
 title = "Proper citations on a static site: Zotero, Rust, and Typst"
 description = "How I built a citation pipeline for my Zola blog that reads from Zotero, renders references in HTML, and generates PDFs with Typst. No LaTeX required."
-date = 2026-02-25
+date = 2026-03-10
 draft = false
 [taxonomies]
 tags = ["rust", "zotero", "typst", "writing"]
