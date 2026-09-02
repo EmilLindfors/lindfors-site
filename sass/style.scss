@@ -355,6 +355,64 @@ pre {
 // Reading Progress Bar
 // =============================================================================
 
+/* Analytics consent bar. Shown by rum.js until the reader has answered; hidden
+   through the hidden attribute, which the attribute selector below must win over
+   the display rule. */
+.consent-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 90;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm) 1.5rem;
+    padding: var(--spacing-sm) 1rem;
+    background: var(--color-bg-secondary);
+    border-top: 1px solid var(--color-border);
+    color: var(--color-text);
+    font-size: 0.85rem;
+    line-height: 1.4;
+
+    p {
+        margin: 0;
+        max-width: 42rem;
+    }
+
+    a {
+        color: var(--color-link);
+    }
+
+    &[hidden] {
+        display: none;
+    }
+}
+
+.consent-actions {
+    display: flex;
+    gap: var(--spacing-sm);
+    flex-shrink: 0;
+
+    button {
+        padding: 0.35rem 0.9rem;
+        border-radius: 6px;
+        border: 1px solid var(--color-border);
+        background: var(--color-bg);
+        color: var(--color-text);
+        font: inherit;
+        font-size: 0.85rem;
+        cursor: pointer;
+
+        &:hover,
+        &:focus-visible {
+            border-color: var(--color-accent);
+            color: var(--color-accent);
+        }
+    }
+}
+
 .reading-progress {
     position: fixed;
     top: var(--header-height);

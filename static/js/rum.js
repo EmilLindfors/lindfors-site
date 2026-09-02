@@ -40,6 +40,50 @@
     // console warning on every page load. Say nothing and do nothing instead.
     if (!cfg.applicationId || !cfg.clientToken || !cfg.site || !cfg.bundle) return;
 
+    // --- consent, before anything else ---------------------------------------
+    // The SDK sets a first-party session cookie (_oo_s), which is analytics and not
+    // something the site needs, so it needs a yes. Nothing below runs, and the SDK is
+    // never fetched, until the reader has pressed Allow. The answer is kept in
+    // localStorage, which is the one thing that counts as strictly necessary: it is
+    // how "No thanks" is remembered as well as "Allow". The bar is markup in base.html
+    // (CSP: no inline handlers) and the footer's Analytics link reopens it.
+    var CONSENT_KEY = 'oo-rum-consent';
+    function readConsent() { try { return localStorage.getItem(CONSENT_KEY); } catch (e) { return null; } }
+    function writeConsent(v) { try { localStorage.setItem(CONSENT_KEY, v); } catch (e) {} }
+    var bar = document.getElementById('consent-bar');
+    function showBar() { if (bar) bar.hidden = false; }
+    function hideBar() { if (bar) bar.hidden = true; }
+    function clearSessionCookies() {
+        ['_oo_s', '_oo_s_v2'].forEach(function (n) { document.cookie = n + '=; Max-Age=0; path=/'; });
+    }
+
+    if (bar) {
+        bar.addEventListener('click', function (e) {
+            var b = e.target && e.target.closest ? e.target.closest('[data-consent]') : null;
+            if (!b) return;
+            var v = b.getAttribute('data-consent') === 'allow' ? 'allow' : 'deny';
+            writeConsent(v);
+            hideBar();
+            if (v === 'allow') { start(); } else { clearSessionCookies(); }
+        });
+        var openers = document.querySelectorAll('[data-consent-open]');
+        for (var i = 0; i < openers.length; i++) {
+            openers[i].addEventListener('click', function (e) { e.preventDefault(); showBar(); });
+        }
+    }
+
+    var consent = readConsent();
+    if (consent === 'allow') {
+        start();
+    } else if (consent === null) {
+        showBar();
+    }
+
+    var started = false;
+    function start() {
+    if (started) return;
+    started = true;
+
     // --- sample, before spending any bytes -----------------------------------
     var rate = parseInt(cfg.sessionSampleRate, 10);
     if (isNaN(rate)) rate = 100;
@@ -161,6 +205,7 @@
     } else {
         window.addEventListener('load', whenIdle);
     }
+    } // start()
 
     // No allowedTracingUrls. The only same-origin fetch on this site is the
     // newsletter POST to /api/subscribe, and tracing it means injecting

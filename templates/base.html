@@ -173,6 +173,9 @@
                     {% if config.extra.github %}
                     <a href="{{ config.extra.github }}" rel="noopener noreferrer" target="_blank">GitHub</a>
                     {% endif %}
+                    {% if config.extra.rum.enabled | default(value=false) %}
+                    <a href="#" data-consent-open>Analytics</a>
+                    {% endif %}
                 </div>
             </div>
             {% if config.extra.newsletter_endpoint %}
@@ -186,6 +189,17 @@
     <script src="{{ get_url(path='js/theme.js', cachebust=true) }}"></script>
 
     {% if config.extra.rum.enabled | default(value=false) %}
+    <!-- Analytics consent. rum.js shows this until the reader has answered, and fetches
+         nothing, not even the SDK, without an Allow. The answer lives in localStorage;
+         the footer link above reopens it. -->
+    <div class="consent-bar" id="consent-bar" hidden role="region" aria-label="Analytics consent">
+        <p>This site measures page views, load times and errors on a server I run. Nothing is shared or sold.
+            <a href="{{ get_url(path='@/blog/reader-analytics/index.md') }}">What is collected</a></p>
+        <div class="consent-actions">
+            <button type="button" data-consent="allow">Allow</button>
+            <button type="button" data-consent="deny">No thanks</button>
+        </div>
+    </div>
     <!-- Real user monitoring. Only the small loader is requested here; it samples
          first and pulls the vendored SDK bundle itself, after load and on an idle
          callback, so an unsampled visit costs nothing and a sampled one costs
