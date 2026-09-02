@@ -69,8 +69,6 @@ pages = "351-389"
 doi = "10.1177/002383099203500401"
 +++
 
-My partner is dyslexic. It had not occurred to me until recently that a 2,500-word post about OTLP temporality is, for a good number of people, work rather than reading.
-
 <!-- emil -->
 The audio project came from the realization that my partner can get through a research article much quicker when she listens to the text while reading instead of just reading, so I wanted to explore it for myself with LLM audio generation. So I cloned my voice and tried it out.
 
@@ -80,7 +78,7 @@ The result is at the top of this page: about twelve and a half minutes of me, sy
 
 ## What the research says
 
-The evidence for text-to-speech and dyslexia is better than I expected. Dyslexia is common: the estimates in Peterson & Pennington's review (<a href="#ref-Peterson2012">2012</a>) start at 5 percent and go up with how broadly it is defined. Wood et al. (<a href="#ref-Wood2017">2017</a>) pooled the studies on read-aloud tools and reading disabilities and found a real improvement in comprehension. The mechanism is plain: decoding costs effort, and the effort comes out of the same budget as understanding. Take the decoding away and the budget goes to the meaning.
+My partner is dyslexic, and the evidence for text-to-speech and dyslexia is better than I expected. Dyslexia is common: the estimates in Peterson & Pennington's review (<a href="#ref-Peterson2012">2012</a>) start at 5 percent and go up with how broadly it is defined. Wood et al. (<a href="#ref-Wood2017">2017</a>) pooled the studies on read-aloud tools and reading disabilities and found a real improvement in comprehension. The mechanism is plain: decoding costs effort, and the effort comes out of the same budget as understanding. Take the decoding away and the budget goes to the meaning.
 
 The finding that changed my design is older. Montali & Lewandowski (<a href="#ref-Montali1996">1996</a>) tested less skilled readers three ways: text alone, audio alone, and text with the spoken word highlighted as it went. The bimodal version won on comprehension and on how the readers felt about the task. That is exactly what my partner does with a research article, and it is stage four for me. It is not built yet. It is the reason the pipeline emits an intermediate script instead of going straight from markdown to MP3, because word-level highlighting needs a text to align against.
 
