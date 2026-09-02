@@ -709,24 +709,15 @@ pre {
     }
 
     // Not every featured post has a hero image, so the lead has to read well
-    // both ways. With one, image and text split the width so the card does not
-    // become tall enough to push the rest of the page down -- which is the thing
-    // a full-width lead is most at risk of doing.
+    // both ways. With one, the text sits on the picture (below) and the card is
+    // taller than the pair under it, but not by enough to push the rest of the
+    // page down. Either way the description gets a measure instead of the full
+    // 1024px width.
     &.has-image a {
-        display: grid;
-        grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-        align-items: stretch;
-        gap: 0;
+        padding-top: clamp(9rem, 22vw, 14rem);
     }
 
-    &.has-image .featured-image {
-        height: 100%;
-        min-height: 200px;
-    }
-
-    // Without one it is a wider text block, so give the description room rather
-    // than letting it run the full 1024px measure.
-    &:not(.has-image) p {
+    p {
         max-width: 44rem;
     }
 }
@@ -752,9 +743,58 @@ pre {
         padding: var(--spacing-lg);
     }
 
-    &.has-image a {
+    // The same treatment as the post header: text in flow over an absolutely
+    // positioned picture, under a Deep Sea scrim, so the card is as tall as its
+    // text needs and no taller.
+    // The grid stretches the two lower cards to one height. The link fills the
+    // card and pins its text to the bottom, so the shorter card's picture covers the
+    // extra height instead of leaving a band of card background under it.
+    &.has-image {
         display: flex;
         flex-direction: column;
+    }
+
+    &.has-image a {
+        position: relative;
+        isolation: isolate;
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        padding-top: clamp(7rem, 20vw, 9rem);
+
+        &::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            background: linear-gradient(
+                to bottom,
+                rgba(28, 50, 64, 0.05) 0%,
+                rgba(28, 50, 64, 0.6) 40%,
+                rgba(28, 50, 64, 0.95) 100%
+            );
+        }
+    }
+
+    &.has-image .featured-image {
+        position: absolute;
+        inset: 0;
+        height: 100%;
+        z-index: -2;
+    }
+
+    &.has-image h3 {
+        color: #F0EAE0;
+        text-shadow: 0 1px 2px rgba(14, 26, 32, 0.4);
+    }
+
+    &.has-image p {
+        color: rgba(240, 234, 224, 0.85);
+    }
+
+    &.has-image .featured-meta {
+        color: rgba(240, 234, 224, 0.7);
     }
 
     h3 {
@@ -1777,16 +1817,10 @@ pre {
         grid-template-columns: 1fr;
     }
 
-    // Once the grid is one column there is no width to split, so the lead card
-    // goes back to image-above-text like the other two.
+    // One column: the lead is just the first card, same size as the others.
     .featured-card--lead {
         &.has-image a {
-            grid-template-columns: 1fr;
-        }
-
-        &.has-image .featured-image {
-            height: 200px;
-            min-height: 0;
+            padding-top: clamp(7rem, 20vw, 9rem);
         }
 
         h3 {

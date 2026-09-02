@@ -39,16 +39,29 @@ get_section(path="blog/_index.md") %}
             class="featured-card{% if page.extra.featured_image %} has-image{% endif %}{% if loop.first %} featured-card--lead{% endif %}"
         >
             <a href="{{ page.permalink }}">
-                {% if page.extra.featured_image %} {% set thumb =
-                page.extra.featured_image | replace(from=".webp",
-                to="-thumb.webp") %}
+                {# The text sits on the picture, as on the post itself, so the image
+                   is decorative here and the alt is empty. The lead card spans the
+                   grid and gets the full hero; the others get the 600px thumbnail. #}
+                {% if page.extra.featured_image %}
+                {% if loop.first %}
+                <img
+                    class="featured-image"
+                    src="{{ page.path | safe }}{{ page.extra.featured_image }}"
+                    alt=""
+                    width="1200"
+                    height="675"
+                />
+                {% else %}
+                {% set thumb = page.extra.featured_image | replace(from=".webp", to="-thumb.webp") %}
                 <img
                     class="featured-image"
                     src="{{ page.path | safe }}{{ thumb }}"
-                    alt="{{ page.title }}"
+                    alt=""
                     loading="lazy"
                     width="600"
+                    height="338"
                 />
+                {% endif %}
                 {% endif %}
                 <div class="featured-text">
                     <h3>{{ page.title }}</h3>
