@@ -13,7 +13,7 @@ skip_audio = true
 featured_image = "hero.webp"
 toc = true
 changelog = [
-    { date = 2026-09-02, description = "Rewritten in the same pass as the rest of the series. Adds why the fork exists in Emil's own words, the modularity lens from Baldwin & Clark, the sovereignty angle, and a plain ending. The patches, config and code are unchanged." },
+    { date = 2026-09-02, description = "Rewritten in the same pass as the rest of the series. Adds why the fork exists, the modularity lens from Baldwin & Clark, the sovereignty angle, and a plain ending. The patches, config and code are unchanged." },
 ]
 +++
 

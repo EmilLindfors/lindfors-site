@@ -11,7 +11,7 @@ series = ["The infrastructure behind this blog"]
 [extra]
 toc = true
 changelog = [
-    { date = 2026-09-02, description = "Rewritten in the blog's own voice. The research section now cites its sources. Adds the cloned voice, and the honest status: shelved until a better TTS service turns up. Numbers, commands and tables are unchanged." },
+    { date = 2026-09-02, description = "The research section now cites its sources. Adds the cloned voice, and the honest status: shelved until a better TTS service turns up. Numbers, commands and tables are unchanged." },
 ]
 
 [extra.bib]

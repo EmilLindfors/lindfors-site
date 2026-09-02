@@ -13,7 +13,7 @@ skip_audio = true
 featured_image = "hero.webp"
 toc = true
 changelog = [
-    { date = 2026-09-02, description = "Rewritten in the same pass as the rest of the series. Adds why the stack exists in Emil's own words, the learning-by-using lens from Rosenberg, the open question about OpenRouter, and a plain ending. The configs, queries and numbers are unchanged." },
+    { date = 2026-09-02, description = "Rewritten in the same pass as the rest of the series. Adds why the stack exists, the learning-by-using lens from Rosenberg, the open question about OpenRouter, and a plain ending. The configs, queries and numbers are unchanged." },
 ]
 +++
 

@@ -12,7 +12,7 @@ featured = true
 toc = true
 featured_image = "hero.webp"
 changelog = [
-    { date = 2026-09-02, description = "Rewritten in the blog's own voice and brought up to date: the markdown copies and content negotiation, the audio pipeline, the CSP, the docker fallback on Windows, the admin dashboard and the Tera v2 migration. New title. Adds the path-dependence reading (Sydow, Schreyögg & Koch 2009) and a fourth thing I would do differently." },
+    { date = 2026-09-02, description = "Brought up to date: the markdown copies and content negotiation, the audio pipeline, the CSP, the docker fallback on Windows, the admin dashboard and the Tera v2 migration. New title. Adds the path-dependence reading (Sydow, Schreyögg & Koch 2009) and a fourth thing I would do differently." },
     { date = 2026-08-11, description = "Updated for Zola 0.23 and the move from shell scripts to the site-tools Rust CLI." },
 ]
 
