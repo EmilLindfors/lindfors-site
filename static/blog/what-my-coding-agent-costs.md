@@ -1,17 +1,20 @@
 ---
 title: "Measuring what a coding agent actually costs"
-description: "A self-hosted OpenTelemetry stack for LLM usage: OpenObserve, otelcol, and two months of getting the numbers wrong. Span-derived metrics, cumulative counters, zero-valued token histograms, and 118,469 spans of which 118 were useful."
+description: "A self-hosted OpenTelemetry stack for LLM usage, built as an OpenObserve experiment for customers who keep telemetry on prem: two months of getting the numbers wrong, 118,469 spans of which 118 were useful, and what Rosenberg's learning by using says about why the price list told me nothing."
 date: 2026-08-13
-tags: ["llm", "opentelemetry", "observability", "codex", "openrouter"]
+tags: ["llm", "opentelemetry", "observability", "codex", "openrouter", "innovation"]
 author: "Emil Lindfors"
 canonical: https://lindfors.no/blog/what-my-coding-agent-costs/
 ---
 
 # Measuring what a coding agent actually costs
 
-The two previous posts in this series were about pointing a coding agent at [whichever endpoint a client will approve](https://lindfors.no/blog/which-llm-are-we-allowed-to-use), and [the code that made that possible](https://lindfors.no/blog/forking-codex-for-any-endpoint). Both of them make cost claims. This one is about how I know those numbers, which took considerably longer than the fork did.
+<!-- emil -->
+We have been experimenting on using an open source observability tool called OpenObserve for customers that want to keep telemetry on prem, and thus I wanted to see how to integrate LLM telemetry from an agent harness there.
 
-Everything here is self-hosted and open source. No vendor SaaS, no per-seat pricing, and no shipping prompt content to a third party — which, as it turns out, is a thing you have to actively prevent.
+The agent harness is the Codex fork from [the previous post](https://lindfors.no/blog/forking-codex-for-any-endpoint), and the cost claims in [the first post](https://lindfors.no/blog/which-llm-are-we-allowed-to-use) come out of this work. Getting the numbers right took considerably longer than the fork did.
+
+Everything here is self-hosted and open source. No vendor SaaS, no per-seat pricing, and no prompt content shipped to a third party. That last one you have to actively prevent, and there is a section on it below.
 
 
 ## The stack
@@ -25,7 +28,12 @@ Everything here is self-hosted and open source. No vendor SaaS, no per-seat pric
 | [Codex CLI](https://github.com/openai/codex) | LLM client, emits its own OTLP metrics and traces | 0.1.1 |
 | [OpenRouter](https://openrouter.ai) Broadcast | LLM gateway, ships spans with token counts and cost | — |
 
-OpenObserve Enterprise is free under 200 GB/day of ingest, which is not a constraint for one host.
+OpenObserve Enterprise is free under 200 GB/day of ingest. One host does not get anywhere near that.
+
+<!-- emil -->
+They do have built in telemetry for a lot of these tools now so it's even easier than what I made it out to be.
+
+So if you start today, check OpenObserve's own integrations first. What follows is the collector route, and you still want the collector for the second half of this post, which is about dropping noise before it costs storage.
 
 Three ingest paths, one collector, one store:
 
@@ -47,7 +55,7 @@ Three ingest paths, one collector, one store:
                                   └───────────────────────────────────┘
 ```
 
-OpenObserve speaks OTLP directly, so strictly the collector is optional. It earns its place by routing to per-destination streams (OpenObserve picks the stream from a `stream-name` header, so you need one exporter per stream, otherwise everything lands in `default` and retention becomes unmanageable), and by dropping noise before it costs storage. That second job turned out to matter more than anything else here.
+OpenObserve speaks OTLP directly, so strictly the collector is optional. It is there for two jobs. It routes to per-destination streams (OpenObserve picks the stream from a `stream-name` header, so you need one exporter per stream, otherwise everything lands in `default` and retention becomes unmanageable), and it drops noise before it costs storage. That second job turned out to matter more than anything else here.
 
 The OTLP receiver binds to loopback and has no auth of its own. Anything from off-host arrives through nginx, which terminates TLS, enforces basic auth, and strips the credential before proxying so the collector never sees it:
 
@@ -69,7 +77,7 @@ location /otlp/ {
 
 ## Getting the numbers, three times
 
-This is the part worth writing about, because I got it wrong twice.
+I got the numbers wrong twice before they were right. Here are all three attempts, because the two wrong ones looked fine on a chart.
 
 ### Attempt 1: derive metrics from OpenRouter spans
 
@@ -103,13 +111,13 @@ processors:
       match_type: strict
 ```
 
-Find out which temporality your source emits before writing a single aggregation. None of these three produced an error. They produced numbers that were plausibly wrong, which is the worst kind.
+Find out which temporality your source emits before writing a single aggregation. None of these three produced an error. They produced numbers that were plausibly wrong, and nothing flagged them.
 
 ### Attempt 2: use Codex's own metrics
 
 Codex CLI exports its own OTLP metrics, and they look like the right source: first-party, no span-derivation fragility, about 35 metric families covering turns, tool calls, latency, SSE events, sqlite init, skills selection.
 
-The shape differs from the OTel `gen_ai` semantic conventions, so a few notes if you go this way. All token counts live in one histogram, `codex_turn_token_usage`, split by a `token_type` label (`input`, `cached_input`, `cache_write_input`, `output`, `reasoning_output`, `total`) rather than one metric per direction; the `_sum` stream carries the count and `_count` is the number of turns. `token_type = 'total'` already includes input plus output, so any per-model panel has to filter to a single type or it double-counts. And the model label is plain `model`, not `gen_ai.request.model`.
+The shape differs from the OTel `gen_ai` semantic conventions, so a few notes if you go this way. All token counts live in one histogram, `codex_turn_token_usage`, split by a `token_type` label (`input`, `cached_input`, `cache_write_input`, `output`, `reasoning_output`, `total`), not one metric per direction; the `_sum` stream carries the count and `_count` is the number of turns. `token_type = 'total'` already includes input plus output, so any per-model panel has to filter to a single type or it double-counts. And the model label is plain `model`, not `gen_ai.request.model`.
 
 Two things killed it as the primary source.
 
@@ -152,7 +160,7 @@ What I checked:
 - **A client-supplied id.** OpenRouter surfaces `trace_metadata.openrouter.user_id` from the `user` field of the request body. Codex sends nothing there.
 - **Wall clock.** The only real link. Codex's `chat.stream_request` trails OpenRouter's `LLM Generation` by a strikingly stable 227–242 ms, with 5–48 s between calls, so pairing them by eye is unambiguous.
 
-That last one is a trap dressed up as a solution, and I abandoned it for two reasons.
+That last one looks like a solution. I abandoned it for two reasons.
 
 The first is that OpenObserve's DataFusion silently returns zero rows for inequality joins. An interval join (`ON o.start_time BETWEEN c.start_time AND c.end_time`) returns an empty result set. Not an error, not a warning, just nothing. Equi-joins are fine. `UNION ALL` and cross joins panic outright:
 
@@ -164,7 +172,12 @@ So the only workable shape is an equi-join on a bucketed timestamp, which means 
 
 What works instead, for free: a separate OpenRouter API key per project. The key name arrives as `trace_metadata.openrouter.api_key_name` on every span, which gives exact project-level attribution with no join at all. It's coarser than per-turn and it's correct, and I'll take correct over precise.
 
-If you want to correlate two telemetry sources, the join key has to be designed in from the start.
+If you want to correlate two telemetry sources, design the join key in from the start.
+
+<!-- emil -->
+We have thought about using a split thing like using both OpenRouter plus Codex telemetry to get the full picture but that is a bigger project that we haven't started yet.
+
+The dashboard below is the small version of that: both sources on one page, read side by side.
 
 ## Agent traces are enormous
 
@@ -206,7 +219,7 @@ Budget for noise suppression as a real part of the work. Every component here ov
 
 ## Your prompts end up in your logs
 
-By default OpenRouter Broadcast ships `gen_ai.input_messages` and `gen_ai.output_messages`, which is the entire conversation including the system prompt. On this setup that means 90k-token prompts sitting in the trace store. It's a privacy question and it's also most of the storage.
+By default OpenRouter Broadcast ships `gen_ai.input_messages` and `gen_ai.output_messages`. That is the entire conversation, system prompt included. On this setup it means 90k-token prompts sitting in the trace store. It's a privacy question and it's also most of the storage.
 
 Turning on LLM tracing means logging your prompts unless you take a specific step to stop it. There's a provider-side toggle; the collector-side attribute drop is the belt-and-braces version and it covers every source at once:
 
@@ -222,11 +235,11 @@ processors:
           - delete_key(attributes, "gen_ai.system_instructions")
 ```
 
-Which I have written down and not yet applied on this host, so take it as a recommendation from someone who hasn't finished following it.
+I have written it down and not yet applied it on this host. It is in the open items below.
 
 ## The dashboard
 
-One dashboard, `LLM Usage`, ten panels, both sources on a shared hourly axis and read together by eye rather than joined.
+One dashboard, `LLM Usage`, ten panels, both sources on a shared hourly axis and read together by eye, not joined.
 
 | Panel | Source |
 |---|---|
@@ -253,7 +266,7 @@ GROUP  BY "x_axis_1", "breakdown_1"
 ORDER  BY "x_axis_1"
 ```
 
-Dashboards are managed over the REST API rather than the UI, which makes them reviewable and re-creatable:
+Dashboards are managed over the REST API, not the UI, so they are reviewable and re-creatable:
 
 ```
 GET  /api/{org}/dashboards
@@ -262,13 +275,24 @@ PUT  /api/{org}/dashboards/{id}?folder=default&hash={hash}
 
 The `hash` is a concurrency token from the `GET`. Stale hash, rejected write.
 
-Sample numbers over about two days of real use: **$0.184 across 5.97 M tokens, of which 2.0 M were prompt-cache hits.** The cache panel is the most actionable thing on the board, since it's the difference between an eighteen-cent day and a much worse one. That figure is also the evidence behind the cost claims in the [business post](https://lindfors.no/blog/which-llm-are-we-allowed-to-use) — at this scale tooling cost is noise, but I'd rather say so with a number than assert it.
+Sample numbers over about two days of real use: **$0.184 across 5.97 M tokens, of which 2.0 M were prompt-cache hits.** The cache panel is the most actionable thing on the board, since it's the difference between an eighteen-cent day and a much worse one. That figure is the evidence behind the cost claims in the [business post](https://lindfors.no/blog/which-llm-are-we-allowed-to-use): at this scale tooling cost is noise, and now there is a number behind the sentence.
+
+## Learning by using
+
+Here is the lens for this one. Nathan Rosenberg's *Inside the Black Box* (1982) has a chapter called "Learning by using", and its argument is simple. For a complicated piece of equipment, you cannot know what it really costs to run, or what it is really good at, from its design or its price list. You find out by using it for a long time and paying attention. His examples are aircraft: the airlines learned the maintenance costs, the fuel economy and the right routes for a new airframe over years of service, and a great deal of that knowledge fed back into stretched versions of the same plane. He splits the learning in two. *Embodied* learning changes the design. *Disembodied* learning changes how you operate the thing you already have, and he found that the second kind often moved the economics more.
+
+Rosenberg wrote about jet engines and machine tools, and an agent harness is software, so the transfer is not automatic. I think it holds, because a coding agent behaves much more like a machine tool than like a subscription: what it costs depends on how you run it. Read the two months above through the lens and every finding is a learning-by-using finding:
+
+- **The price list told me nothing.** $0.09 per million tokens is design information. The number that mattered, 2.0 M of 5.97 M tokens served from cache, only exists after two days of real use with a meter attached.
+- **The disembodied learning is where the money is.** Prompt caching, reasoning effort, and which model gets which task are all operating practice. None of them required a new model or a patch, and together they move cost-per-task more than switching vendor would.
+- **The cost of measuring is itself learned by using.** Nobody's documentation says that a tracing session produces 118,469 spans. You find out when the disk fills.
+- **The instrument has to be there before the learning can start.** Rosenberg's airlines kept maintenance logs. If you are choosing an agent or a model on price, you are choosing on the information that use will overturn first, so put the meter in before you decide.
 
 ## Access control, briefly
 
 OpenObserve's Dex integration points straight at Keycloak's OIDC endpoints, with no Dex container involved. Four things that cost me time:
 
-`O2_DEX_BASE_URL` must be the realm root, because OpenObserve fetches `BASE_URL + /.well-known/openid-configuration` and Keycloak serves that at the realm root rather than under `/protocol/openid-connect`. The Keycloak client needs an audience mapper adding `openobserve` to the access token's `aud`, since Keycloak defaults it to `account`, which fails validation. Org and role come from per-user Keycloak attributes (`o2_org` / `o2_role`) surfaced as claims by attribute mappers, deliberately not the `groups` claim, whose value is `admin` and would put users in a non-existent `admin` org while all data ingests into `default`; those attributes also have to be declared in the realm's user profile or Keycloak drops them without saying so. And roles of external users can't be edited in OpenObserve at all, because they're read from these claims on every login.
+`O2_DEX_BASE_URL` must be the realm root, because OpenObserve fetches `BASE_URL + /.well-known/openid-configuration` and Keycloak serves that at the realm root, not under `/protocol/openid-connect`. The Keycloak client needs an audience mapper adding `openobserve` to the access token's `aud`, since Keycloak defaults it to `account`, which fails validation. Org and role come from per-user Keycloak attributes (`o2_org` / `o2_role`) surfaced as claims by attribute mappers, deliberately not the `groups` claim, whose value is `admin` and would put users in a non-existent `admin` org while all data ingests into `default`; those attributes also have to be declared in the realm's user profile or Keycloak drops them without saying so. And roles of external users can't be edited in OpenObserve at all, because they're read from these claims on every login.
 
 Container logs get their service name from the filename, which means starting containers with an explicit log path:
 
@@ -283,13 +307,26 @@ The default podman path exposes only a container ID. An earlier version of my co
 - **Codex trace sampling.** 99.9% of spans are runtime internals. Needs a client-side filter, or a `filter` processor on `service.name IN (codex_*)` that drops everything but the handful of meaningful operations.
 - **Stripping prompt content** at the collector, per above.
 - **Retention.** `/opt/openobserve/data` is 238 MB and growing, and retention isn't configured, so it grows without bound.
-- **Codex token metrics reporting zero**, which I should report upstream rather than just work around.
+- **Codex token metrics reporting zero**, which I should report upstream.
 - The `sum` connector and its `cumulative_to_delta` entry are dead weight now that cost is read from spans directly, and I haven't removed them.
+- **Whether OpenRouter stays in the stack at all.** The cost and token numbers here all come through it, and the gateway question is open again:
+
+<!-- emil -->
+We are still undecided if OpenRouter is the way to go now that they have been bought by Stripe and enterprise functionality like EU processing starts at 25k USD a month.
+
+If it goes, the span source goes with it, and the split-source project above becomes the way to get cost back.
 
 ## If you build this yourself
 
 Attach the debug exporter before anything else. Every metric bug above was invisible in the dashboard and obvious in raw datapoints.
 
-Check temporality before writing any aggregation, since cumulative summed per bucket is the easiest way to be 50% wrong. Find the root span, because span trees put the real numbers in one place and zeros everywhere else. Design the join key in or don't join. Verify a query returns rows before trusting an empty result, because a silent zero-row join looks exactly like "no data yet". Assume every component over-reports and that each needs a different off switch. And decide about prompt content on day one, not after 90k-token prompts are already on disk.
+Then, in the order they bit me:
 
-If you've found a way to get a real join key between an agent and a gateway without patching one of them, I'd like to hear it, because the per-key attribution I settled on is coarser than I want.
+- Check temporality before writing any aggregation. Cumulative summed per bucket is the easiest way to be 50% wrong.
+- Find the root span. Span trees put the real numbers in one place and zeros everywhere else.
+- Design the join key in, or don't join.
+- Verify a query returns rows before trusting an empty result. A silent zero-row join looks exactly like "no data yet".
+- Assume every component over-reports, and that each one needs a different off switch.
+- Decide about prompt content on day one, not after 90k-token prompts are already on disk.
+
+The stack is running, the dashboard is up, and the next thing that changes it is the gateway decision. Until then, eighteen cents a day.

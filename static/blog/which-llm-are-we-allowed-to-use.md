@@ -1,97 +1,158 @@
 ---
-title: "Which LLM are we allowed to use?"
-description: "We spent a while trying to decide which model our consultants could use on which client projects, ended up forking a coding agent over it, and found that most of the question was about the endpoint rather than the tool."
+title: "Exploring LLMs so our customers don't have to"
+description: "Norwegian businesses started asking their consultants this in 2026, after a year of quietly running Claude Code. Two decisions hidden in one question, why the endpoint matters more than the tool, what it actually costs, and what March's explore/exploit dilemma says about how a company ends up on one vendor without ever deciding to."
 date: 2026-08-11
-tags: ["ai", "llm", "governance", "gdpr", "consulting"]
+tags: ["ai", "llm", "governance", "gdpr", "consulting", "innovation"]
 author: "Emil Lindfors"
 canonical: https://lindfors.no/blog/which-llm-are-we-allowed-to-use/
 ---
 
-# Which LLM are we allowed to use?
+# Exploring LLMs so our customers don't have to
 
-A few months ago someone at work asked which LLM our consultants should be allowed to use, and on which client projects. Nobody could answer it cleanly. I assumed for a while that this was a procurement problem and that somebody just needed to sit down with a spreadsheet.
+"Which LLM are we allowed to use?" A customer asked us that this spring, and by midsummer it was arriving every few weeks. Here is what the same customers were doing the day before they asked:
 
-It wasn't a procurement problem. There were two separate decisions tangled up in the question, and every discussion we had went in circles until we pulled them apart.
+<!-- emil -->
+Most of them now just use Claude Code or Cortex etc and haven't thought about security, GDPR or cost.
+
+That is not a criticism. Norwegian businesses have been slow to catch up on this, and the tools were good enough that nobody needed to think. Someone installed Claude Code in March, it worked, and by June the whole team used it. Nobody chose a model vendor. The laptop chose it for them.
+
+<!-- emil -->
+So it's a knowledge problem, not a procurement problem, I will say.
+
+At work we try to run this kind of experiment before our customers need the answer. So through the spring we pointed a coding agent at every kind of endpoint we could find. We forked the agent when it would not cooperate, measured what it cost, and read a lot of GDPR guidance. This post is what we learned, plus one lens from innovation theory that explains why the customers ended up where they did. The code is in [a companion post](https://lindfors.no/blog/forking-codex-for-any-endpoint), and the cost numbers have [a post of their own](https://lindfors.no/blog/what-my-coding-agent-costs).
 
 
-## Two different decisions
+## Two decisions hiding in one question
 
-**Internal consultant tooling** is how our own people use models on their own machines. We are the decision-maker. The cost is noise against billable hours. What binds us is governance: can we say, in a sentence, what our consultants are allowed to send where, and can we show it to someone who asks?
+Every discussion we had about this went in circles. Then we noticed there were two decisions in the room, with different people in charge of each.
 
-**Client deliveries** are what we recommend, build and operate for someone else. Here the decision-maker is the client's legal department, the cost is part of a commercial model, and what binds us is an approved endpoint plus an audit trail. The regulatory frame is identical to the internal case, but the threat model, the cost profile and the person who has to say yes are all different, which is why answering both at once never worked.
+| | Internal consultant tooling | Client deliveries |
+|---|---|---|
+| **What it is** | How our own people use models on their own machines | What we recommend, build and operate for someone else |
+| **Who decides** | We do | The client's legal department |
+| **What it costs** | Noise against billable hours | Part of a commercial model |
+| **What binds us** | Being able to say, in one sentence, what our consultants may send where | An approved endpoint and an audit trail |
+
+The regulatory frame is the same in both columns. The threat model, the cost profile and the person who has to say yes are all different. Answer both columns at once and you get the circular meetings. Answer them one at a time and most of the rest of this post follows.
 
 ## Where the data goes
 
-The observation that reorganised our thinking came out of three unrelated investigations that all landed in the same place: a Power BI integration, a data-warehouse agent, and some sandboxing work. In all three, what determined where client data ended up was the LLM endpoint the tool was pointed at, and the choice of tool barely mattered.
+Three unrelated investigations landed on the same fact. A Power BI integration, a data-warehouse agent and some sandboxing work all came down to one variable: the LLM endpoint the tool was pointed at. The choice of tool barely mattered.
 
-A local integration running on your laptop doesn't bypass row-level security or role-based access control, which is good, but that isn't the boundary that matters. Whatever the tool returns goes into the conversation context, and the context is sent onward to whichever provider is configured. Microsoft says this explicitly in their own documentation for the Power BI MCP server. **"It runs locally" is necessary and nowhere near sufficient.**
+Here is the mechanism. A local integration on your laptop respects row-level security and role-based access control, because it is talking to the database as you. Good. But whatever the tool returns goes into the conversation context, and the context is sent to whichever model provider is configured. Microsoft says this plainly in their own documentation for the Power BI MCP server. "It runs locally" is necessary and nowhere near sufficient.
 
-Once you accept that, **the highest-value control in the whole stack is getting the client to approve a named endpoint.** Most of the other questions fall into place behind that one, and which tool or IDE or agent framework you use becomes a preference. Which was fine as a conclusion until we looked at what that implied about the tools we were already using.
+Once you accept that, the highest-value control in the whole stack is getting the client to approve a named endpoint. Everything else becomes a preference: which IDE, which agent, which framework. That was a great conclusion, until we looked at the agents we were already running.
 
-## The bundle problem
+## One line of config
 
-Commercial coding agents ship as a bundle: one vendor's client, locked to one vendor's endpoint. That's a reasonable product decision and a bad fit for a consultancy, because the endpoint is exactly the variable our clients need to control.
+Commercial coding agents ship as a bundle: one vendor's client, locked to one vendor's endpoint. For a first-party product that is a reasonable decision. For a consultancy it is the wrong shape, because the endpoint is exactly the variable our clients need to control.
 
-We do a lot of work inside a client's own environment: their Microsoft 365 tenant, their cloud account, their data platform. When we do, the endpoint choice isn't ours at all. It changes the commercial model and it changes our role under any AI management standard. A tool that can only talk to one vendor's API can't follow us there.
+Much of our work happens inside a client's own environment: their Microsoft 365 tenant, their cloud account, their data platform. There the endpoint choice is not ours at all. It changes the commercial model and it changes our role under any AI management standard. A tool that can only talk to one vendor's API cannot follow us in.
 
-So we forked one.
+So we forked one. We took OpenAI's Codex CLI, which is Apache-2.0 and a really good agent, and built a small internal fork. The fork is a rebrand, telemetry off by default, its own config directory, and a handful of patches. Upstream had dropped the older Chat Completions protocol in favour of OpenAI's Responses API. That one removal is what locks the agent to a single vendor, because nearly every other inference service in the world speaks Chat Completions. Putting it back was about a thousand lines. The [companion post](https://lindfors.no/blog/forking-codex-for-any-endpoint) has the patches and a ten-minute setup.
 
-We took OpenAI's Codex CLI, which is open source under Apache-2.0 and a good agent, and built an internal fork. The fork is deliberately small: a rebrand, telemetry off by default, its own config directory, and a handful of patches that restore the ability to point the agent at any OpenAI-compatible endpoint. Local models on our own GPU server. Azure OpenAI with corporate single sign-on. OpenRouter. A European sovereign inference provider. A model running inside a client's own tenant.
+What we got out of it is that "which model provider?" stopped being an architecture question and became this:
 
-Upstream had recently gone all-in on OpenAI's newer Responses API and dropped support for the older Chat Completions protocol. That one removal is what locks the agent to a single vendor, because almost every other inference service in the world speaks Chat Completions: aggregators, GPU clouds, local runtimes. Restoring it was about **a thousand lines of code**. I've written up [how that works, and how to do it yourself](https://lindfors.no/blog/forking-codex-for-any-endpoint), in a technical companion to this post.
+```toml
+model_provider = "fraktal-openrouter"
+model = "deepseek/deepseek-v4-flash-0731"
+```
 
-What changed afterwards was that "which model provider?" stopped being an architectural question and became a config line. We can now answer a client's legal department with "whichever endpoint you approve" and mean it.
+Swap those two lines and the same binary drives a local model on our own GPU server, Azure OpenAI with corporate single sign-on, a European sovereign inference provider, or a model inside a client's own tenant. We can now answer a legal department with "whichever endpoint you approve" and mean it.
 
-## What it cost
+## The model and the API are two different things
 
-This is where it's easiest to build an argument that doesn't survive contact with a room full of people who know the numbers, so I want to be careful about it.
+Some endpoints are closed to us for reasons that have nothing to do with quality or price.
 
-Self-hosting almost never wins on price. Compared to cheap open-weight APIs at roughly **$0.14–0.50 per million tokens**, the break-even for a single high-end GPU sits in the **billions of tokens per month**. Western frontier APIs put the crossing point somewhere more reachable, but only if you assume **60–70% sustained utilisation**. A node running eight hours a day pays **five times as much per useful token**, and that's where most self-hosting business cases die. If you present self-hosting as a cost argument, the utilisation assumption belongs on the same slide, or it gets taken apart in front of you. The argument that holds up is availability and control.
+China has no adequacy decision under GDPR. DeepSeek publishes no standard contractual clauses. Italy's data protection authority blocked the service within 72 hours of review, and investigations opened in more than a dozen European jurisdictions. Chinese organisations are obliged under national intelligence law to assist state intelligence work, and no contract clause overrides that. For a consultancy handling client data, `api.deepseek.com` is a door that is closed.
 
-At consultancy scale, tooling cost isn't the interesting variable anyway. A model subscription runs a few hundred kroner per consultant per month, low thousands with heavy agentic usage on consumption pricing. A fully loaded senior consultant costs on the order of **1.4 MNOK a year**. The tooling is something like **0.3%** of that, which is noise, and optimising it is optimising the wrong thing.
+But the model and the API are two different things. Open weights running on a European endpoint, under a European processor agreement, is a completely different compliance case from the same weights behind a Chinese API. Same matrices, different lawyers.
 
-There's one cost variable worth watching and it isn't price per token. Model efficiency now moves cost-per-task more than pricing does. On one recent agentic coding benchmark the most expensive model per token was *the cheapest per completed task*, because it used **a quarter of the tokens and half the steps**. Related: reasoning effort is a cost allocation rather than a quality switch. Run everything at maximum and you burn the budget on tasks a low setting solves just as well.
+This is why the current generation of cheap open-weight models matters commercially and not only technically. DeepSeek V4 Flash costs on the order of $0.09 per million input tokens and $0.18 per million output, roughly an order of magnitude below frontier pricing. It is good enough to drive an agentic coding loop all day. Serve those weights from an endpoint whose jurisdiction and retention terms your client's lawyers have approved, and you have something that did not exist eighteen months ago: a stack that is cheap and defensible at the same time.
 
-None of that is worth asserting without measuring it, so I built the telemetry to do so: two days of real use came to **$0.184 across 5.97 M tokens**, a third of which were prompt-cache hits. [How that stack is put together, and the three ways I got the numbers wrong first](https://lindfors.no/blog/what-my-coding-agent-costs), is a separate post.
+We are not alone in thinking so. By one industry estimate, over 40% of large European enterprises plan to deploy at least one open-weight model on private infrastructure by the end of 2026.
 
-We didn't start any of this to save money. The savings turned up anyway, which is a pleasant result and still a bad thing to lead a proposal with.
+## What it costs, and why that is the wrong question
 
-## Why cheap open-weight models changed things
+This is where an argument most easily falls apart in front of people who know the numbers, so here are the numbers.
 
-Some APIs are simply not available to us, for reasons that have nothing to do with quality or price.
+| | Figure |
+|---|---|
+| Cheap open-weight APIs | $0.14–0.50 per million tokens |
+| Break-even for one high-end GPU against those | Billions of tokens per month |
+| Utilisation needed to beat Western frontier APIs | 60–70%, sustained |
+| Cost penalty of a node running eight hours a day | 5× per useful token |
+| Model subscription per consultant | A few hundred kroner a month, low thousands with heavy agentic use |
+| Fully loaded senior consultant | About 1.4 MNOK a year |
+| Tooling as a share of that | About 0.3% |
+| Two days of real agent use, measured | $0.184 across 5.97 M tokens, a third of them prompt-cache hits |
 
-China has no adequacy decision under GDPR. DeepSeek publishes no standard contractual clauses. Italy's data protection authority blocked the service **within 72 hours** of review, and investigations opened in **more than a dozen** European jurisdictions. Chinese organisations are obliged under national intelligence law to assist state intelligence work, and no contract clause overrides that. For a consultancy handling client data, `api.deepseek.com` is a door that's closed rather than a risk to be weighed.
+Two things follow. First, self-hosting almost never wins on price. If you present it as a cost argument, put the utilisation assumption on the same slide, or it gets taken apart in front of you. The argument that holds up is availability and control. Second, at consultancy scale the tooling cost is noise. Optimising 0.3% is optimising the wrong thing.
 
-But **the model and the API are two different things**. Open weights running on a European endpoint, under a European processor agreement, is a completely different compliance scenario from the same weights behind a Chinese API. Same matrices, *entirely different data flow, entirely different legal analysis*.
+The cost variable worth watching is not price per token at all. Model efficiency now moves cost-per-task more than pricing does. On one recent agentic coding benchmark the most expensive model per token was the cheapest per completed task, because it used a quarter of the tokens and half the steps. Reasoning effort works the same way: it is a cost allocation, and running everything at maximum burns budget on tasks a low setting solves just as well.
 
-That's why the recent generation of cheap, strong open-weight models matters commercially and not just technically. A model like DeepSeek V4 Flash costs on the order of **$0.09 per million input tokens and $0.18 per million output**, roughly *an order of magnitude* below frontier pricing, and it's good enough to drive an agentic coding loop all day. Serve those weights from an endpoint whose jurisdiction and retention terms your client's lawyers have approved, and you have something that wasn't available eighteen months ago: a stack that is cheap and defensible at the same time.
+The number that surprised me was not any of those. It was how much of an internal debate this started about billing. A consultancy sells hours, and an agent that finishes the work in fewer of them is either a discount you did not intend or a margin you have to explain.
 
-We're not out on a limb here either. By one industry estimate, **over 40% of large European enterprises** plan to deploy at least one open-weight model on private infrastructure by the **end of 2026**.
+<!-- emil -->
+This is also an internal debate on how we as a consultancy should bill our hours, so an efficient harness with a good model mix is a competitive advantage, so that is what I would say to other consultants.
 
-## What flexibility doesn't get you
+We have not settled that debate. If you run a consultancy and have not had it yet, you will.
 
-Being able to point at any endpoint is necessary and it is not compliance. Four things I'd want any stakeholder reading this to take away.
+## Explore, exploit, and who does the exploring
 
-**Localisation is not compliance.** Forcing processing into the EU solves the localisation question and none of the others. Lawful basis, the processor agreement, data subject rights and your own documentation obligations sit with the controller regardless of where the bytes are processed. This is the point vendor marketing skips most often.
+Here is the lens. March (1991) described a tension every organisation lives with. *Exploitation* is using what you already know: refining the current tool, getting faster at it, squeezing more out of it. *Exploration* is trying what you do not know: new tools, new vendors, new ways of working, most of which will not pan out. Exploitation pays sooner and more reliably, and that is the problem. Left alone, an organisation drifts toward exploiting whatever it has, because every hour of exploring shows up as a cost this quarter and every hour of exploiting shows up as revenue. March's phrase for what the drift produces is a *competency trap*. You get so good at one way of doing things that every alternative looks worse, because you are comparing your skilled use of the old thing against your first clumsy attempt at the new one.
 
-**The set of approved models has to be pinned, with a named owner.** If you rely on an aggregator's routing controls, note that the set of EU-eligible models is dynamic. Base your posture on "whatever qualifies today" and your compliance position changes without you doing anything. The mitigation is cheap and concrete: pin an explicit allow-list, treat a model change as a controlled change, and name the person who owns the list and the cadence at which it's reviewed. Without an owner and a cadence, "pinned models" is an intention rather than a control. That applies just as much to internal tooling as to client deliveries.
+Read the customers through that. A team that installed Claude Code in March and was fluent by June has exploited beautifully. The questions about security, GDPR and cost never came up, because nothing in the exploiting loop forces them up. When someone then tries an open-weight model on a European endpoint for an afternoon and finds it worse, the competency trap says that is the expected result. It tells you nothing about the model.
 
-**Metadata is still personal data.** Even with region routing, zero-data-retention and training opt-out all enabled, aggregators retain operational metadata for billing: timestamps, model, token counts, latency. If that can be linked to a data subject, it's in scope.
+Tushman & O'Reilly (1996) offered the organisational fix and called it the *ambidextrous organisation*. Run exploitation and exploration in separate units, with different measures and different tempos, and hold them together at the top. Their examples are large firms with a skunkworks on one side and the core business on the other, and we are not a large firm, so the transfer is a stretch. But it names what a consultancy does for its customers. A business that has to keep business as usual running cannot also spend a quarter forking coding agents. We can, and in a sense that is what they pay us for. The exploring gets outsourced.
 
-**Pseudonymisation is the one control that survives every vendor decision.** Minimise what the prompt doesn't need, tokenise direct identifiers, keep the re-identification key under your own control, and treat the model call as an operation on pseudonymised text. It shrinks the blast radius so that a downstream retention failure is far less serious, and it's the kind of technical measure an auditor expects to see. It's also portable, in that it holds no matter which endpoint you end up on. The caveat, which we should say out loud before a regulator does: the legal bar for true anonymisation is high, and pseudonymised data is *still personal data*, so this shrinks the risk without removing a single obligation.
+The theory makes three predictions about this specific case, and so far all three hold:
 
-## Things I'd be careful claiming
+1. **The default tool will be whatever was easiest to install.** Not the one that was approved, because nothing was approved. Ask a customer which LLM they use and the answer is a history of who on the team tried what first.
+2. **The competency gap will be mistaken for a quality gap.** "We tried the open model, it was worse" usually means the team was worse at it. Budget the learning before you judge the model.
+3. **Exploration has to be budgeted or the billable hour eats it.** In a consultancy this is not a metaphor. Every hour on the fork was an hour not invoiced, and it was worth it, and it still needs a line in a budget or it stops.
 
-The EU AI Act **does not require EU-only compute** for most high-risk systems. Compute in the EU makes audit-log obligations easier to satisfy, which is a real advantage, but it's not a legal requirement. Someone in any serious client meeting will know this, and overstating it costs you credibility on everything else you say.
+## Four controls that survive a vendor change
 
-Similarly, an AI management system certification such as ISO/IEC 42001 certifies the management system, not particular models. Changing model or hosting doesn't invalidate a certificate; it triggers change management, a refreshed risk assessment and supplier due diligence. That's a process cost of perhaps **a day**. Worth knowing in both directions, since the standard doesn't restrict your options so much as restrict how you make and document the choice.
+Being able to point at any endpoint is necessary and it is not compliance. Four things I would want any stakeholder to take away.
 
-On timing: as of writing, the AI Act's high-risk requirements have slipped to **late 2027**, with Norwegian implementation expected around **mid-2027**. The prohibitions and the AI-literacy requirement are unaffected by the delay. Practically, that means compliance-as-a-sales-driver is a weaker argument over the next twelve months than it looked a year ago, and anyone still quoting a 2026 date should update the message rather than keep using a date that's now wrong.
+- **Localisation is not compliance.** Forcing processing into the EU solves the localisation question and none of the others. Lawful basis, the processor agreement, data subject rights and your own documentation obligations sit with the controller wherever the bytes are processed. Vendor marketing skips this one most often.
+- **Pin the approved models, and name an owner.** If you rely on an aggregator's routing controls, note that the set of EU-eligible models is dynamic. Base your posture on "whatever qualifies today" and your compliance position changes without you doing anything. Pin an explicit allow-list, treat a model change as a controlled change, and name the person who owns the list and how often it is reviewed. Without an owner and a cadence, "pinned models" is an intention.
+- **Metadata is still personal data.** Even with region routing, zero-data-retention and training opt-out all enabled, aggregators keep operational metadata for billing: timestamps, model, token counts, latency. If that can be linked to a data subject, it is in scope.
+- **Pseudonymise before the call.** Minimise what the prompt does not need, tokenise direct identifiers, keep the re-identification key under your own control, and treat the model call as an operation on pseudonymised text. This is the one control that holds no matter which endpoint you end up on, and it is what an auditor expects to see. One caveat: the legal bar for true anonymisation is high, and pseudonymised data is still personal data, so this shrinks the risk without removing a single obligation.
 
-## Where we landed
+## Three claims to check before you make them
 
-None of this was a grand plan. It started as an experiment, mostly curiosity about whether we could run a coding agent against models we controlled, and the useful findings came out sideways. We set out to look at security and cost, and the thing that ended up mattering most was being able to change endpoint at all.
+Someone in any serious client meeting will know these, and overstating one costs you credibility on everything else you say.
 
-The stack we run now: a small, documented fork of an open-source agent; local models on our own hardware for anything that shouldn't leave the building; a cheap open-weight model on a European endpoint for the bulk of day-to-day work; the enterprise API of a frontier vendor when the task warrants it; and whatever the client has approved when we're working inside their environment. One binary, one config file, one pinned model list.
+| The claim you will hear | What is actually true |
+|---|---|
+| The EU AI Act requires EU-only compute for high-risk systems | It does not, for most of them. EU compute makes the audit-log obligations easier to satisfy, and that is a real advantage, but it is not a legal requirement. |
+| Changing model or hosting breaks an ISO/IEC 42001 certificate | The certificate covers the management system, not particular models. A change triggers change management, a refreshed risk assessment and supplier due diligence, about a day of process. The standard restricts how you make and document the choice, not the choice. |
+| The high-risk requirements land in 2026 | As of writing they have slipped to late 2027, with Norwegian implementation expected around mid-2027. The prohibitions and the AI-literacy requirement are unaffected. Compliance as a sales driver is a weaker argument over the next twelve months than it looked a year ago. |
 
-I'm still not sure where the line sits for client work that involves personal data at any real volume, and I'd like to hear from anyone who has drawn it somewhere defensible. The technical companion, covering how the fork works and how to set the same thing up in about ten minutes, is [here](https://lindfors.no/blog/forking-codex-for-any-endpoint).
+## Where we are
+
+None of this was a plan. It started as curiosity about whether we could run a coding agent against models we controlled, and the useful findings came out sideways. We set out to look at security and cost, and the thing that ended up mattering most was being able to change endpoint at all.
+
+The stack we run today:
+
+- a small, documented fork of an open-source agent
+- local models on our own hardware for anything that should not leave the building
+- a cheap open-weight model on a European endpoint for the bulk of day-to-day work
+- a frontier vendor's enterprise API when the task warrants it
+- whatever the client has approved when we work inside their environment
+
+One binary, one config file, one pinned model list. It is still up in the air what we will decide to standardise on, and I have stopped expecting a single answer.
+
+<!-- emil -->
+It's not a one size fits all solution, some are more technical than others, so I can't expect everyone to download a forked Codex and use a self-hosted DeepSeek and get good results.
+
+So the next problem is learning. The competency trap cuts both ways. The consultants who explored are fluent in the new stack, the ones who were busy exploiting are not, and that gap is now the thing to close. That kind of learning needs close proximity, which is hard in a distributed consultancy, so we are building digital learning arenas for it. That is the next post in this series, once it has run for long enough to have numbers.
+
+If you are deciding this for your own organisation right now, start with the endpoint and the owner of the model list. Everything else, including the fork, is optional.
+
+## References
+
+- March, J. G. "Exploration and Exploitation in Organizational Learning". *Organization Science*, vol. 2, no. 1, pp. 71-87, 1991. [doi:10.1287/orsc.2.1.71](https://doi.org/10.1287/orsc.2.1.71)
+- Tushman, M. L., & O'Reilly, C. A. "Ambidextrous Organizations: Managing Evolutionary and Revolutionary Change". *California Management Review*, vol. 38, no. 4, pp. 8-29, 1996. [doi:10.2307/41165852](https://doi.org/10.2307/41165852)
