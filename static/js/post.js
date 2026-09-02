@@ -172,6 +172,19 @@
         });
     }
 
+    // Markdown tables come out of Zola as bare <table> elements, and a table whose
+    // cells hold paths or code is wider than a phone. Nothing in CSS alone scrolls a
+    // table without either losing its full-width layout or stopping its cells from
+    // wrapping, so each one is wrapped in a scrolling box here. Without JavaScript the
+    // page scrolls sideways instead, which is what it did before.
+    document.querySelectorAll('.post-content table').forEach(function (table) {
+        if (table.parentElement.classList.contains('table-scroll')) return;
+        const box = document.createElement('div');
+        box.className = 'table-scroll';
+        table.parentNode.insertBefore(box, table);
+        box.appendChild(table);
+    });
+
     /// Copy to the clipboard and flash confirmation on `el`, restoring its label after.
     function copyText(text, el, confirmation) {
         navigator.clipboard.writeText(text).then(function () {

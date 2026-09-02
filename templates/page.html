@@ -81,14 +81,19 @@
 <article class="post-layout">
     <!-- Main content column -->
     <div class="post-main">
-        <header class="post-header">
-            <h1>{{ page.title }}</h1>
-            {% if page.description %}
-            <p class="post-description">{{ page.description }}</p>
-            {% endif %}
+        {# With a hero, the title and description sit on the picture instead of above
+           it, so the text starts one band sooner. The image is decorative there (the
+           title is already text), hence the empty alt. #}
+        <header class="post-header{% if page.extra.featured_image %} has-hero{% endif %}">
             {% if page.extra.featured_image %}
-            <img class="post-hero-image" src="{{ page.extra.featured_image }}" alt="{{ page.title }}" width="1200">
+            <img class="post-hero-image" src="{{ page.extra.featured_image }}" alt="" width="1200" height="675" fetchpriority="high">
             {% endif %}
+            <div class="post-header-text">
+                <h1>{{ page.title }}</h1>
+                {% if page.description %}
+                <p class="post-description">{{ page.description }}</p>
+                {% endif %}
+            </div>
         </header>
 
         {# Series banner. A post can sit in more than one series -- the taxonomy takes

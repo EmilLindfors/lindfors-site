@@ -789,6 +789,54 @@ pre {
     margin-top: var(--spacing-md);
 }
 
+// The header with a hero behind it. The text stays in normal flow and the picture
+// is absolutely positioned behind it, so the block is exactly as tall as the padding
+// plus the title: a long title grows the header instead of overflowing the picture.
+// The scrim is Deep Sea (the dark theme's text colour, the light theme's) fading in
+// from the top, the same treatment the share cards use, so it reads over the paper-
+// coloured heroes and the darker older ones alike.
+.post-header.has-hero {
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    border-bottom: none;
+    padding: clamp(7rem, 24vw, 12rem) var(--spacing-lg) var(--spacing-lg);
+    isolation: isolate;
+
+    .post-hero-image {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        margin: 0;
+        border-radius: 0;
+        z-index: -2;
+    }
+
+    &::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background: linear-gradient(
+            to bottom,
+            rgba(28, 50, 64, 0.05) 0%,
+            rgba(28, 50, 64, 0.6) 40%,
+            rgba(28, 50, 64, 0.95) 100%
+        );
+    }
+
+    h1 {
+        color: #F0EAE0;
+        text-shadow: 0 1px 2px rgba(14, 26, 32, 0.4);
+    }
+
+    .post-description {
+        color: rgba(240, 234, 224, 0.85);
+    }
+}
+
 .featured-meta {
     display: flex;
     gap: var(--spacing-md);
@@ -1485,6 +1533,17 @@ pre {
         margin: var(--spacing-xs) 0;
     }
 
+    // Added around every table by post.js so a wide one scrolls on its own instead
+    // of dragging the whole page sideways on a phone.
+    .table-scroll {
+        overflow-x: auto;
+        margin: var(--spacing-md) 0;
+
+        > table {
+            margin: 0;
+        }
+    }
+
     table {
         width: 100%;
         border-collapse: collapse;
@@ -2047,6 +2106,12 @@ pre {
 
     .post-header h1 {
         font-size: 1.5rem;
+    }
+
+    .post-header.has-hero {
+        padding-left: var(--spacing-md);
+        padding-right: var(--spacing-md);
+        padding-bottom: var(--spacing-md);
     }
 
     .newsletter-form {
