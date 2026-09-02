@@ -9,6 +9,7 @@ categories = ["business"]
 series = ["Coding agents and what they cost"]
 
 [extra]
+featured_image = "hero.webp"
 skip_audio = true
 featured = true
 toc = true

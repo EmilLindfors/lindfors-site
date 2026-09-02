@@ -9,6 +9,7 @@ categories = ["programming"]
 series = ["Citations on a blog"]
 
 [extra]
+featured_image = "hero.webp"
 skip_audio = true
 toc = true
 changelog = [

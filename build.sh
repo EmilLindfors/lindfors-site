@@ -61,6 +61,13 @@ else
     # Drafts are skipped by site-tools, so unpublished posts get no public PDF.
     echo "Generating PDFs..."
     "$SITE_TOOLS" pdf all || echo "  Warning: Some PDFs failed to generate"
+
+    # One 1200x630 share image per published post at static/og/<slug>.png: the
+    # model-drawn card where `site-tools hero card` made one, otherwise the title
+    # composed over the hero or the palette. Same toolchain as the PDFs, so it sits
+    # behind the same preflight and the same SKIP_PDFS.
+    echo "Generating share images..."
+    "$SITE_TOOLS" og all || echo "  Warning: share image generation failed"
 fi
 
 echo "Building site with Zola..."

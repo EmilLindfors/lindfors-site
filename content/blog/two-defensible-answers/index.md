@@ -8,6 +8,8 @@ tags = ["llm", "semantic-layer", "bi", "mcp", "duckdb", "innovation"]
 categories = ["programming"]
 
 [extra]
+skip_audio = true
+featured_image = "hero.webp"
 toc = true
 changelog = [
     { date = 2026-09-02, description = "Rewritten around the innovation-theory reading of the same month: dominant designs, the era of ferment, lock-in and modularity. New title. The build log, numbers and links are unchanged." },

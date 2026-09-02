@@ -26,12 +26,17 @@
 <meta property="article:modified_time" content="{{ page.extra.updated }}">
 {% endif %}
 <meta property="article:author" content="{{ config.author }}">
+{# Every published post has a 1200x630 card at /og/<slug>.png, written by
+   `site-tools og all` in the build: the model-drawn card where one exists,
+   otherwise the title composed over the hero or the palette. extra.og_image is a
+   manual override. #}
 {% if page.extra.og_image %}
 <meta property="og:image" content="{{ config.base_url | safe }}{{ page.extra.og_image }}">
-{% elif page.extra.featured_image %}
-<meta property="og:image" content="{{ page.permalink | safe }}{{ page.extra.featured_image }}">
-{% elif config.extra.og_image %}
-<meta property="og:image" content="{{ config.base_url | safe }}{{ config.extra.og_image }}">
+{% else %}
+<meta property="og:image" content="{{ config.base_url | safe }}/og/{{ page.slug }}.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="{{ page.title }}">
 {% endif %}
 {% if page.taxonomies.categories %}
 <meta property="article:section" content="{{ page.taxonomies.categories | first }}">
@@ -49,10 +54,8 @@
 <meta name="twitter:description" content="{{ page.description | default(value=config.description) }}">
 {% if page.extra.og_image %}
 <meta name="twitter:image" content="{{ config.base_url | safe }}{{ page.extra.og_image }}">
-{% elif page.extra.featured_image %}
-<meta name="twitter:image" content="{{ page.permalink | safe }}{{ page.extra.featured_image }}">
-{% elif config.extra.og_image %}
-<meta name="twitter:image" content="{{ config.base_url | safe }}{{ config.extra.og_image }}">
+{% else %}
+<meta name="twitter:image" content="{{ config.base_url | safe }}/og/{{ page.slug }}.png">
 {% endif %}
 {% endblock twittercard %}
 
@@ -364,7 +367,7 @@
         "name": "{{ config.author }}",
         "url": "{{ config.base_url | safe }}/about/"
     },
-    "image": "{% if page.extra.og_image %}{{ config.base_url | safe }}{{ page.extra.og_image }}{% elif page.extra.featured_image %}{{ page.permalink | safe }}{{ page.extra.featured_image }}{% elif config.extra.og_image %}{{ config.base_url | safe }}{{ config.extra.og_image }}{% endif %}",
+    "image": "{% if page.extra.og_image %}{{ config.base_url | safe }}{{ page.extra.og_image }}{% else %}{{ config.base_url | safe }}/og/{{ page.slug }}.png{% endif %}",
     "publisher": {
         "@type": "Person",
         "name": "{{ config.author }}"

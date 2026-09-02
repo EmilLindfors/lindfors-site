@@ -9,6 +9,7 @@ categories = ["programming"]
 series = ["The infrastructure behind this blog"]
 
 [extra]
+featured_image = "hero.webp"
 skip_audio = true
 toc = true
 changelog = [
