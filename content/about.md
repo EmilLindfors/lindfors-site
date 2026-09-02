@@ -66,7 +66,7 @@ I maintain several open source projects:
 
 - **[a2a-rs](https://github.com/EmilLindfors/a2a-rs)** — Rust implementation of Google's Agent-to-Agent protocol
 - **[rust-browser-mcp](https://github.com/EmilLindfors/rust-browser-mcp)** — MCP server for AI-powered web navigation
-- **[strata](https://github.com/EmilLindfors/strata)** — Rust lakehouse with a metrics-view semantic layer, used for the Norwegian aquaculture dataset in the BI post
+- **[strata](https://github.com/EmilLindfors/strata)** — Rust data platform that covers ingest, transform and present in one tool: where dbt starts at the warehouse, strata also does the ingest side. The present layer, with a semantic layer and metrics views, is what I am building now; the Norwegian aquaculture dataset in the BI post runs on it
 - **[roms-rs](https://github.com/EmilLindfors/roms-rs)** — Discontinuous Galerkin solver for coastal ocean modeling
 - **[lindfors-site](https://github.com/EmilLindfors/lindfors-site)** — this site: Zola, the site-tools CLI, the newsletter Worker
 

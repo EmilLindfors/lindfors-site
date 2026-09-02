@@ -193,7 +193,7 @@ AI capability lead and senior data engineer at Fraktal Oslo, with 15+ years of s
   row-gutter: 0.3em,
   text(weight: "bold")[a2a-rs:], [Rust implementation of Google's Agent-to-Agent protocol for multi-agent communication],
   text(weight: "bold")[rust-browser-mcp:], [MCP server in Rust for AI-powered web navigation using Gecko or WebDriver backends],
-  text(weight: "bold")[strata:], [Rust lakehouse with a metrics-view semantic layer, driving the aquaculture dataset behind the BI agent work],
+  text(weight: "bold")[strata:], [Rust data platform covering ingest, transform and present in one tool---dbt's scope plus the ingest side; the present layer (semantic layer, metrics views) is in progress],
   text(weight: "bold")[roms-rs:], [Experimental Discontinuous Galerkin solver for coastal ocean modeling---simulating Norwegian coast currents],
 )
 #text(size: 9pt, fill: light-gray)[See #link("https://github.com/EmilLindfors")[github.com/EmilLindfors] for more projects]
