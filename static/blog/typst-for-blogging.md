@@ -312,7 +312,7 @@ site-tools pdf all
 
 These run after [citation processing](https://lindfors.no/blog/citations-on-a-static-site/) (since the PDF generator needs resolved references) and before `zola build`. The generated PDFs go into `static/pdf/`, which Zola copies to the build output. Every post's sidebar has a PDF download button that links to `/pdf/{slug}.pdf`.
 
-Typst compiles each post in well under a second. The whole site including all PDFs builds in a few seconds. Compare that to LaTeX, where a single document with `biblatex` can take 30 seconds and multiple passes. For the full build pipeline, see the [site overview post](https://lindfors.no/blog/building-a-personal-blog-with-zola/#the-extended-pipeline).
+Typst compiles each post in well under a second. The whole site including all PDFs builds in a few seconds. Compare that to LaTeX, where a single document with `biblatex` can take 30 seconds and multiple passes. For the full build pipeline, see the [site overview post](https://lindfors.no/blog/building-a-personal-blog-with-zola/#the-build-in-order).
 
 ## What the output looks like
 
