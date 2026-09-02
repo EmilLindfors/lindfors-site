@@ -52,7 +52,7 @@ number = "3"
 doi = "10.1093/pnasnexus/pgae052"
 +++
 
-Every post on this blog now has a picture behind its title, and a card with the title drawn into it for when the link is shared. Twenty-eight generations, about a dollar, one afternoon. The picture at the top of this post is one of them. The card is what you saw if you arrived from social media.
+Every post on this blog now has a picture behind its title, and a card with the title drawn into it for when the link is shared. Thirty-three generations, a little over a dollar, one afternoon. The picture at the top of this post is one of them. The card is what you saw if you arrived from social media.
 
 <!-- emil -->
 I do enjoy a good image to go along with a blog post, it's how I was brought up I feel like. The post feels empty without it, but maybe I'm just an old-fashioned millennial. But it's always been tricky to source images. I've done that in previous projects but it never feels good and coherent.
@@ -109,7 +109,7 @@ Which model is a one-line setting. OpenRouter lists nine image-output models thi
 | Gemini 3.1 Flash Image | $0.067 | PNG, 1376x768 | no visible gain over Lite |
 | Gemini 3 Pro Image | higher | | not tried; nothing looked like it needed it |
 
-Cost turned out not to matter at all. Ten posts with a hero and a card each came to about seventy cents. The test runs and the redraws brought the afternoon to a dollar.
+Cost turned out not to matter at all. Twelve posts with a hero and a card each came to about eighty cents. The test runs and the redraws brought the afternoon to a little over a dollar.
 
 <!-- voice-ok: the joke is the build's own preflight catching the tool, told flat -->
 The first card the tool wrote did not survive its own build. The picture came back as a JPEG, I saved it next to the post as `card.jpg`, and `build.sh` refused to run. The image preflight I wrote in August fails the build on any JPEG or PNG under `content/`, because `deploy.sh` runs `git add -A` and a forgotten 4 MB source is in the history for good. Right call. The card goes through `img-optim` too now, at quality 90 because text has to survive it, and the rule keeps holding without an exception.
@@ -121,11 +121,12 @@ I know that in the last year the models have made great strides in capability of
 
 I did not believe this until I tried it. My plan was to compose the title over the picture with Typst, which the site already runs for the PDFs, because I expected the model to misspell anything longer than a word. So I generated one card with the title in the prompt, to have something to argue against. It came back with a 70-character title spelled correctly, broken over three sensible lines, in a serif close to the site's own, with the domain in coral underneath. Seven cents. The plan changed.
 
-The prompt asks for the illustration on the right two thirds, the title on the left third in a classic serif in deep navy, spelled exactly as written, and the site name small in coral below it. Of eleven first attempts, three came back wrong:
+The prompt asks for the illustration on the right two thirds, the title on the left third in a classic serif in deep navy, spelled exactly as written, and the site name small in coral below it. Of thirteen first attempts, four came back wrong:
 
-- One printed `exact: lindfors.no`, the word *exact* leaking out of the instruction and into the picture. The prompt now gives the site name its own line, the way the title has one.
-- One put a stray opening quote mark before the title.
-- One printed the site name twice.
+- The first printed `exact: lindfors.no`, the word *exact* leaking out of the instruction and into the picture. The prompt now gives the site name its own line, the way the title has one.
+- Another put a stray opening quote mark before the title.
+- A third printed the site name twice.
+- A hero, drawn later, filled a switchboard's label strip with rows of invented lettering. The prompt for that post now says there are no markings on it.
 
 A redraw fixed each one, at three cents. That is the fourth jig doing its job: nothing about the model tells you when it has gone wrong, so somebody has to look. Do not skip that step, and do not let the build generate anything you have not seen.
 
@@ -135,7 +136,7 @@ The Typst step stayed, for a different reason. The share card has to be a 1200x6
 2. No card: the hero, with the title, the site and the date composed over a gradient.
 3. No hero either: the title on the dark palette.
 
-Typst reads WebP, exports PNG and has the site's fonts on its font path. Its output is byte-identical between runs, so an unchanged post does not dirty the repo. The templates point `og:image` and `twitter:image` at that path for every post, so nothing ever falls back to the generic site image again. Two posts still have their older, unmatched heroes from August, and they get composed cards until I redraw them.
+Typst reads WebP, exports PNG and has the site's fonts on its font path. Its output is byte-identical between runs, so an unchanged post does not dirty the repo. The templates point `og:image` and `twitter:image` at that path for every post, so nothing ever falls back to the generic site image again. The two posts that had heroes from August were the last to be redrawn, so every card on the site is now the model's.
 
 ## Putting the title on the picture
 
@@ -149,7 +150,7 @@ Checking that on a phone turned up an unrelated bug from February. Markdown tabl
 
 **Keep the subject and the style apart.** The post says what is in the picture. The site says how pictures look here. Mixing them is how the fourth post comes out in a different hand from the first three.
 
-**Let the model spell the title, and keep a composed fallback.** It works now, it looks better than composed text, and one redraw in four is the price. The fallback means every post has a card whether or not you paid for one.
+**Let the model spell the title, and keep a composed fallback.** It works now, it looks better than composed text, and one redraw in three or four is the price. The fallback means every post has a card whether or not you paid for one.
 
 **Look at every picture.** The failures are quiet: a leaked word, a doubled line, a quote mark. Three cents to redraw, but only if somebody notices.
 
