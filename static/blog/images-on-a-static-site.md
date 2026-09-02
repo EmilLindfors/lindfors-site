@@ -1,6 +1,6 @@
 ---
 title: "Images on a static site: tradeoffs, limits, and a 150-line Rust optimizer"
-description: "Why I serve images from git instead of object storage, how many I can get away with, and the small Rust tool I built to convert and resize everything to WebP."
+description: "Why images on this blog live in git next to the post instead of in object storage, how many that can hold, the small Rust tool that turns anything into a WebP, and what six months of using it changed."
 date: 2026-02-23
 tags: ["zola", "web", "rust"]
 author: "Emil Lindfors"
@@ -9,51 +9,49 @@ canonical: https://lindfors.no/blog/images-on-a-static-site/
 
 # Images on a static site: tradeoffs, limits, and a 150-line Rust optimizer
 
-Every blog post I've written so far has been pure text. Code blocks, citations, math -- but no images. Now that I'm writing about sensor rigs and aquaculture sites, I need photographs. That raised a question I hadn't needed to answer yet: where should the images live?
+Images on this blog live in git, in the same directory as the post that uses them, as WebP files that a small Rust tool made from whatever I had. That was the decision in February, when the site had no pictures at all and I was about to write about sensor rigs and salmon farms. Six months on the decision has held, the tool has grown, and the pictures turned out to be something I had not planned for. This is the setup, the arithmetic behind it, and what changed.
 
 
 ## The options
 
-There are three reasonable approaches for a static site deployed to Cloudflare Pages.
+There are three reasonable places to put images on a static site deployed to Cloudflare Pages.
 
-**Co-located in git.** Images sit next to the markdown file in the same directory. Zola copies them to the output at build time. Simple, version-controlled, no external dependencies.
+**Next to the post, in git.** The image sits in the post's directory and Zola copies it to the output. Version-controlled, no extra service, and a link like `sensor-rig.webp` in the markdown.
 
-**Object storage (Cloudflare R2, S3, etc.).** Images live in a bucket, referenced by URL. The git repo stays lean. Adds operational complexity: a separate upload step, URL management, another service to configure.
+**Object storage.** Cloudflare R2, S3, anything with a bucket. The repo stays small. You gain an upload step, URL management and one more service to configure.
 
-**Inline as base64.** Encode images directly into the HTML. No extra files to serve. Terrible idea in practice: 33% size overhead from the encoding, defeats browser caching (the image is re-downloaded with every page load), and bloats the HTML the browser has to parse before rendering anything.
+**Inline as base64.** Encode the image into the HTML. No extra files to serve, and a terrible idea in practice: 33% bigger from the encoding, no browser caching (the image is downloaded again with every page), and more HTML to parse before anything renders.
 
-## Why I chose git
+## Why git
 
-This site's design principle is everything in one repo. The fonts are self-hosted. The newsletter runs on a Cloudflare Worker checked into the same repository. The PDF generation pipeline reads from the same markdown files. Adding a second deployment target for images would break that model.
+Everything on this site is one repo. The fonts are self-hosted, the newsletter Worker is checked in beside the templates, and the PDF pipeline reads the same markdown. A second deployment target for images would have been the first thing that lived somewhere else.
 
-The practical question is whether git can handle it. The answer is yes, easily, for a blog.
+The practical question is whether git can carry it. For a blog, easily.
 
 ### The math
 
-A well-optimized blog image -- WebP format, 1200 pixels wide, quality 80 -- is typically 80-150 KB. Diagrams and charts as SVG are even smaller, often under 10 KB.
+A well-optimised blog image, WebP at 1200 pixels wide and quality 80, is 30 to 150 KB. A diagram as SVG is often under 10 KB. At 150 KB an image, here is how far you get:
 
-At 150 KB average, here's how far you can go:
+| Images | Repo size | Git performance |
+|---|---|---|
+| 100 | ~15 MB | No impact |
+| 500 | ~75 MB | No impact |
+| 1,000 | ~150 MB | Fine |
+| 2,000 | ~300 MB | Still fine |
 
-| Images | Repo size  | Git performance |
-|--------|-----------|-----------------|
-| 100    | ~15 MB    | No impact       |
-| 500    | ~75 MB    | No impact       |
-| 1,000  | ~150 MB   | Fine            |
-| 2,000  | ~300 MB   | Still fine      |
+Git starts feeling slow somewhere around 500 MB to 1 GB of binary content. That is 3,000 to 7,000 optimised images. I am not going to write 3,000 posts.
 
-Git starts feeling sluggish around 500 MB to 1 GB of binary content. That's somewhere between 3,000 and 7,000 optimized blog images. I'm not going to write 3,000 blog posts.
-
-Cloudflare Pages itself has generous limits: 20,000 files per deployment, 25 MB max per file. Neither is a concern for blog images.
+Cloudflare Pages allows 20,000 files per deployment and 25 MB per file. Neither is a concern for images.
 
 ### When object storage makes sense
 
-If I start hosting video, large downloadable datasets, or high-resolution photo galleries with dozens of full-res images per post, then R2 with a custom subdomain would be the right move. The migration is straightforward since it's just changing image paths from relative to absolute URLs. But that's a bridge to cross when I'm actually at it.
+Video, large downloadable datasets, or galleries with dozens of full-resolution photographs per post. Then R2 on a subdomain is the right move, and the migration is changing image paths from relative to absolute. That is a bridge to cross when I reach it.
 
-## The optimization tool
+## The tool
 
-The key to making co-located images work is optimizing before committing. A 4 MB DSLR photo has no business being in a git repository or served to a browser. What you want is a WebP at a sensible resolution.
+The key to keeping images in git is optimising before committing. A 4 MB photograph from a camera has no business in a repository or in a browser. What you want is a WebP at a sensible width.
 
-I built a small Rust CLI for this. Two crates: `image` for decoding and resizing, `webp` (which wraps libwebp) for lossy WebP encoding with quality control.
+I wrote a small Rust CLI for it, `img-optim`. Two crates do the work: `image` for decoding and resizing, and `webp`, which wraps libwebp, for lossy encoding with a quality setting.
 
 ### Cargo.toml
 
@@ -73,11 +71,11 @@ webp = "0.3"
 opt-level = 3
 ```
 
-The `image` crate's default features pull in a pure-Rust WebP encoder that only supports lossless encoding. For lossy with quality control, you need the `webp` crate, which links against libwebp. On Ubuntu/Debian that's `apt install libwebp-dev`.
+One thing to note here. The `image` crate's default features include a pure-Rust WebP encoder that only does lossless. For lossy with quality control you need the `webp` crate, which links against libwebp. On Debian and Ubuntu that is `apt install libwebp-dev`.
 
 ### The core logic
 
-The interesting part fits in three functions:
+The interesting part is three functions, about 150 lines with the argument parsing:
 
 ```rust
 fn resize_to_width(img: image::DynamicImage, max_width: u32) -> image::DynamicImage {
@@ -119,13 +117,13 @@ fn optimize(
 }
 ```
 
-`resize_to_width` uses Lanczos3 resampling, which is the right choice for downscaling photographs. It preserves sharpness better than bilinear or bicubic. The function is a no-op if the image is already within the target width.
+`resize_to_width` uses Lanczos3 resampling. It keeps edges sharper than bilinear or bicubic when downscaling a photograph, and it does nothing when the image is already narrow enough.
 
-`encode_webp` wraps the libwebp encoder. Quality 80 is a good default -- visually indistinguishable from the original for blog-sized images, with significant size savings.
+`encode_webp` wraps libwebp. Quality 80 is the default. At blog sizes I cannot tell it from the original, and the file is a fraction of the size.
 
 ### Thumbnails
 
-Featured images on the front page don't need to be 1200 pixels wide. A 600px thumbnail at slightly lower quality is enough for a card layout. The tool generates these with the `-t` flag:
+The featured cards on the front page do not need 1200 pixels. A 600-pixel thumbnail at slightly lower quality is plenty for a card. The `-t` flag makes one:
 
 ```rust
 const THUMB_WIDTH: u32 = 600;
@@ -149,11 +147,11 @@ fn thumbnail(
 }
 ```
 
-The naming convention is deterministic: `hero.jpg` becomes `hero.webp` (full size) and `hero-thumb.webp` (thumbnail). The template derives the thumbnail path from the frontmatter `featured_image` field using a string replace.
+The names are fixed: `hero.jpg` becomes `hero.webp` and `hero-thumb.webp`. The templates derive the thumbnail path from `featured_image` with a string replace, so the frontmatter names one file.
 
 ### Results
 
-Running the tool against a couple of test images:
+The two test images I ran it on in February:
 
 ```
 $ img-optim -t photo.jpg diagram.png
@@ -165,17 +163,24 @@ $ img-optim -t photo.jpg diagram.png
   Total: 309.3 KB -> 49.7 KB (-84%)
 ```
 
-PNG diagrams compress spectacularly well. Photographs see significant reduction from the combined effect of format conversion, quality reduction, and resolution capping.
+And a real one from this week, the hero at the top of this post as it came out of an image model:
+
+```
+  hero.jpg -> hero.webp (175.2 KB -> 67.7 KB, -61%)
+  hero.jpg -> hero-thumb.webp (16.4 KB)
+```
+
+PNG diagrams compress spectacularly. Photographs and illustrations get roughly halved by the format change, the quality setting and the width cap together.
 
 ## The workflow
 
-The complete process for adding images to a blog post:
+Adding images to a post:
 
 ```
 content/blog/my-post/
 ├── index.md
 ├── hero.webp          # featured image (1200px, q80)
-├── hero-thumb.webp    # thumbnail for index page (600px, q75)
+├── hero-thumb.webp    # thumbnail for the front page (600px, q75)
 ├── sensor-rig.webp    # inline image
 └── results-chart.svg  # diagrams stay as SVG
 ```
@@ -187,7 +192,7 @@ The frontmatter:
 featured_image = "hero.webp"
 ```
 
-In markdown, images use relative paths:
+In the markdown, relative paths:
 
 ```markdown
 ![The sensor rig mounted on the cage](sensor-rig.webp)
@@ -200,35 +205,43 @@ The commands:
 img-optim -t content/blog/my-post/hero.jpg
 img-optim content/blog/my-post/sensor-rig.jpg
 
-# Delete originals, commit the .webp files
+# Delete the originals, commit the .webp files
 rm content/blog/my-post/*.jpg
 ```
 
-The `-t` flag is only needed for the featured image. Inline images don't need thumbnails.
+`-t` is only for the featured image. Inline images do not need thumbnails.
 
 ## What the template does
 
-The `featured_image` field drives several things automatically:
+`featured_image` drives four things:
 
-- **Post header:** displays the full-resolution image below the title
-- **Front page cards:** shows the thumbnail on featured post cards
-- **OpenGraph / Twitter Card:** uses the image for social sharing previews
-- **JSON-LD structured data:** includes the image for search engine rich results
+- **The post header.** The title and description sit on the picture, under a dark gradient, so the article starts one band sooner than it did when the picture came after the title.
+- **The front page.** Featured cards get the same treatment, the lead card with the full hero and the other two with their thumbnails.
+- **The PDF.** The hero appears on the first page.
+- **Social sharing.** Every post has a 1200x630 card at `/og/<slug>.png`. With a hero and no better card, the title is composed over the hero. How the better cards are made is [its own post](https://lindfors.no/blog/generated-illustrations/).
 
-If `featured_image` isn't set, the post renders exactly as before -- text only. No fallback placeholder, no broken layout.
+A post without `featured_image` renders exactly as before. Text only, no placeholder, no broken layout.
 
 ## Format recommendations
 
-**WebP** for photographs and screenshots. Lossy compression at quality 80 is the sweet spot. Virtually all browsers support it now.
+**WebP** for photographs, illustrations and screenshots. Lossy at quality 80 is the sweet spot. Every browser you care about supports it.
 
-**SVG** for diagrams, charts, architecture drawings, and anything with clean lines and text. Infinitely scalable, tiny file size, and they respect the site's light/dark theme if you use `currentColor`.
+**SVG** for diagrams, charts and anything with clean lines and text. Scales without limit, tiny, and it follows the site's light and dark themes if you use `currentColor`.
 
-**Avoid PNG** for photographs -- it's lossless, which means large files for no perceptible quality gain on a blog. PNG is fine for screenshots where you need pixel-perfect text, but WebP lossless handles that too at smaller sizes.
+**Not PNG** for photographs. Lossless means large files for no visible gain. PNG is fine for screenshots where pixel-perfect text matters, and WebP lossless does that too, smaller.
 
-**Avoid JPEG** as the final format. WebP at equivalent visual quality is 25-35% smaller. Use JPEG as a source format that you convert from.
+**Not JPEG** as the final format. WebP at the same visual quality is 25 to 35% smaller. Use JPEG as the source you convert from.
+
+## Six months on
+
+Two things did not go the way the February version of this post expected, and one did.
+
+**No photograph ever arrived.** Every picture on this site today is a hero image, and every one of them is generated. The sensor rigs and the salmon farms are still in my head. The tool that was built for DSLR photographs has converted only illustrations, which it does not know or care about.
+
+**The tool grew.** It is 531 lines now, with tests, up from 325. A `-q` given as the last argument used to panic by indexing past the end of argv, so the argument parsing returns errors instead. Quality is bounded to 0 to 100, because libwebp clamps silently: `-q 900` encoded at 100 and looked like it had worked. Animated GIFs convert to animated WebP. And the build refuses to run with an unconverted JPEG or PNG under `content/`, because `deploy.sh` runs `git add -A`, and a forgotten 4 MB source would be in the history for good. That check has already caught one file, a card that the generation tool wrote as a JPEG.
+
+**Git is fine.** Thirteen posts with heroes, thumbnails and cards come to under 2 MB of images. The table above still has three zeros to spare.
 
 ## A note on the hero image
 
-The featured image on this post was generated with [Qwen-Image-2.0](https://qwen.ai/blog?id=qwen-image-2.0), Alibaba's open-source image generation model released in February 2026. It supports native 2K resolution and handles text rendering well, which makes it useful for generating decorative hero images when you don't have a photograph that fits.
-
-For a technical blog, most images will be screenshots, diagrams, or photographs of actual hardware. But for posts like this one -- where the topic is abstract -- an AI-generated image works as a visual anchor without misrepresenting anything. The image went through the same `img-optim` pipeline as any other: generated at high resolution, then converted to a 1200px WebP with a 600px thumbnail.
+The hero on this post was originally generated with Qwen-Image-2.0, Alibaba's open model from February 2026, as a decorative anchor for a post about an abstract topic. In September it was replaced with the drawer of prints at the top of the page, drawn by a different model in the style every post now shares. It went through `img-optim` like anything else: 175 KB of JPEG to a 68 KB WebP with a 16 KB thumbnail. The same picture is now the style reference that every other hero on the site is drawn against, which is [the next post](https://lindfors.no/blog/generated-illustrations/).
