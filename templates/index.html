@@ -2,9 +2,9 @@
 
 {# The homepage is the one page whose title cannot fall back to config.title --
    "lindfors.no" on its own gives a search engine nothing to match a query against. #}
-{% block title %}Emil Lindfors — Rust, aquaculture, and sensor systems{% endblock %}
+{% block title %}Emil Lindfors — AI, data platforms, Rust, and innovation theory{% endblock %}
 
-{% block description %}Emil Lindfors writes about Rust, aquaculture technology, sensor systems, and self-hosted infrastructure. PhD in technological innovation, senior software engineer in Norway.{% endblock %}
+{% block description %}Emil Lindfors writes about agent-powered data pipelines, talking to your data, coding agents, Rust, and self-hosted infrastructure, read through innovation theory. AI capability lead and senior data engineer in Oslo, PhD in innovation studies.{% endblock %}
 
 {% block canonical %}{{ config.base_url | safe }}/{% endblock %}
 
@@ -15,9 +15,10 @@ get_section(path="blog/_index.md") %}
 <section class="hero">
     <h1>Hi, I'm Emil Lindfors</h1>
     <p class="hero-subtitle">
-        Aquaculture, Rust, sensors, and the intersection of technology and
-        nature. PhD in technological innovation and senior software engineer in
-        Norway.
+        AI and data platforms by day, Rust by choice, and a PhD in innovation
+        studies that I keep putting to work on both. Agent-powered pipelines,
+        talking to your data, coding agents, and what the theory says about
+        adopting any of it.
     </p>
     {% if config.extra.newsletter_endpoint %}
     {{<newsletter.form endpoint={config.extra.newsletter_endpoint} variant="hero" />}}

@@ -55,7 +55,7 @@
   [
     #text(size: 24pt, weight: "bold", fill: accent)[Emil Lindfors]
     #v(-0.2em)
-    #text(size: 11pt, fill: light-gray)[Senior Software Engineer | PhD Responsible Innovation]
+    #text(size: 11pt, fill: light-gray)[AI Capability Lead & Senior Data Engineer | PhD Innovation Studies]
     #v(0.3em)
     #text(size: 9pt)[
       #link("mailto:emil@lindfors.no")[emil\@lindfors.no] #h(0.8em) | #h(0.8em)
@@ -73,7 +73,7 @@
 // ============ PROFESSIONAL SUMMARY ============
 #section("Professional Summary")
 
-Senior software engineer with 15+ years of experience and a PhD in responsible technological innovation. Deep domain expertise in *aquaculture data platforms*---I've built production systems integrating Fishtalk, Mercatus, IoT sensor data, and ocean models (IMR Norkyst) for major Norwegian salmon farmers. I architect robust, scalable infrastructure in Rust and Python: data pipelines, API integrations, and cloud deployment (AWS, Terraform). Recent work includes LLM integration and AI agent development. My research background brings rigor and long-term thinking to system design.
+AI capability lead and senior data engineer at Fraktal Oslo, with 15+ years of software engineering and a PhD in innovation studies. I lead the work on *agent-powered data pipelines*, *talk-to-your-data* capabilities and *agent-assisted coding*: which models and endpoints a customer can use, what they cost, and how to keep the ability to switch. I build the platforms underneath in Rust and Python on open standards (Apache Iceberg), designed for modularity. Deep aquaculture domain background: production data platforms integrating Fishtalk, Mercatus, IoT sensors and ocean models for Norwegian salmon farmers. The research side, on how industries adopt new technology, is what lets me tell an era of ferment from a dominant design when advising a customer.
 
 // ============ TECHNICAL SKILLS ============
 #section("Technical Skills")
@@ -82,20 +82,33 @@ Senior software engineer with 15+ years of experience and a PhD in responsible t
   columns: (auto, 1fr),
   column-gutter: 1em,
   row-gutter: 0.4em,
+  text(weight: "bold")[AI & Agents:], [Agent-powered pipelines, talk-to-your-data over semantic layers (Wren MDL, MCP tools, governed text-to-SQL), agent-assisted coding (Codex fork, Claude Code), LLM cost and usage telemetry (OpenTelemetry, OpenObserve), model and endpoint evaluation (Azure OpenAI, OpenRouter, Anthropic, local models)],
+  text(weight: "bold")[Data Platforms:], [Apache Iceberg, DuckDB, lakehouse design, API design, ETL pipelines, real-time sensor data, ocean models (IMR Norkyst)],
+  text(weight: "bold")[Languages:], [Rust, Python, TypeScript, SQL],
+  text(weight: "bold")[Cloud/DevOps:], [AWS (Lambda, ECS, S3, Batch), Azure, Terraform, GitHub Actions, Docker, Cloudflare Workers, self-hosted services],
   text(weight: "bold")[Aquaculture:], [Fishtalk, Mercatus, production data integration, salmon farming domain expertise],
-  text(weight: "bold")[Data Platforms:], [API design, ETL pipelines, system integration, real-time sensor data, ocean models (IMR Norkyst)],
-  text(weight: "bold")[Cloud/DevOps:], [AWS (Lambda, ECS, S3, Batch), Terraform, GitHub Actions, Docker, CI/CD],
-  text(weight: "bold")[Languages:], [Python, Rust, TypeScript, JavaScript],
-  text(weight: "bold")[AI/ML:], [LLM integration (Claude, Azure OpenAI), agent development, prompt engineering],
 )
 
 // ============ PROFESSIONAL EXPERIENCE ============
 #section("Professional Experience")
 
 #experience(
+  "Fraktal Oslo",
+  "AI Capability Lead & Senior Data Engineer",
+  "March 2026 -- Present",
+  "Oslo",
+  (
+    [Lead the AI capability at a data platform consultancy: run the experiments on models, endpoints and agent tooling before customers need the answer, so the recommendation they get is tested],
+    [Agent-powered data pipelines and talk-to-your-data capabilities: agents over a semantic layer (Wren MDL, MCP tools, DuckDB and lakehouse backends) with governed text-to-SQL, so business questions get one defensible answer],
+    [Agent-assisted coding across providers: maintain a Codex CLI fork that runs against local models, OpenRouter, Azure OpenAI with Entra auth and EU-hosted endpoints; LLM cost and usage telemetry via OpenTelemetry into self-hosted OpenObserve],
+    [Data platform engineering in Rust and Python on open standards (Apache Iceberg), designed for modularity so customers can switch platforms without rebuilding],
+  )
+)
+
+#experience(
   "AquaCloud",
   "Senior Software Engineer",
-  "January 2025 -- Present",
+  "January 2025 -- January 2026",
   "Norway",
   (
     [Architected production-grade aquaculture data platform integrating Fishtalk, Mercatus, and other industry systems],
@@ -115,7 +128,6 @@ Senior software engineer with 15+ years of experience and a PhD in responsible t
   (
     [Built Rust backend system integrated with Microsoft Teams for internal communication workflows],
     [Automated research group newsletter: weekly submission aggregation, admin approval flow, automated distribution],
-    [Designed integrations with Microsoft ecosystem (Teams, Power Automate, email) for operational efficiency],
     [Contributed to university-wide technology strategy and responsible technology implementation],
   )
 )
@@ -129,7 +141,6 @@ Senior software engineer with 15+ years of experience and a PhD in responsible t
     [PhD: "The Evolution of Technological Trajectories: Responsible Innovation and Regional Industrial Path Development"],
     [Researched salmon farming industry transformation in Norway, Australia, and USA; 92 interviews, comparative case studies],
     [Published 3 peer-reviewed articles (Sustainability, Marine Policy, Regional Studies) with 1 under review],
-    [Developed frameworks for understanding how technology adoption shapes regional industrial development],
   )
 )
 
@@ -142,7 +153,6 @@ Senior software engineer with 15+ years of experience and a PhD in responsible t
     [First non-founder employee at the global aquaculture startup accelerator],
     [Participated in due diligence for Aqua-Spark's seed investment in Hatch],
     [Evaluated startups and managed dealflow across two accelerator cohorts (8 international startups)],
-    [Contributed to investment discussions, marketing, outreach, and portfolio company support],
   )
 )
 
@@ -155,8 +165,6 @@ Senior software engineer with 15+ years of experience and a PhD in responsible t
     [14+ years building production web systems and domain-specific software solutions],
     [Led digitalization project for sea lice counting in salmon farming using computer vision],
     [Built custom data dashboards and reporting tools for aquaculture clients],
-    [Full-stack development: React/Vue frontends, Python/Rust backends, PostgreSQL databases],
-    [Home infrastructure: self-hosted services, IoT sensors (ESP32), home automation systems],
   )
 )
 
@@ -185,6 +193,7 @@ Senior software engineer with 15+ years of experience and a PhD in responsible t
   row-gutter: 0.3em,
   text(weight: "bold")[a2a-rs:], [Rust implementation of Google's Agent-to-Agent protocol for multi-agent communication],
   text(weight: "bold")[rust-browser-mcp:], [MCP server in Rust for AI-powered web navigation using Gecko or WebDriver backends],
+  text(weight: "bold")[strata:], [Rust lakehouse with a metrics-view semantic layer, driving the aquaculture dataset behind the BI agent work],
   text(weight: "bold")[roms-rs:], [Experimental Discontinuous Galerkin solver for coastal ocean modeling---simulating Norwegian coast currents],
 )
 #text(size: 9pt, fill: light-gray)[See #link("https://github.com/EmilLindfors")[github.com/EmilLindfors] for more projects]

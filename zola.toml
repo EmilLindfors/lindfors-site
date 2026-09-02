@@ -3,7 +3,7 @@ base_url = "https://lindfors.no"
 
 # Site title and description
 title = "lindfors.no"
-description = "Writings on aquaculture, Rust programming, sensors, and scientific topics"
+description = "Agent-powered data platforms, Rust, and innovation theory applied to new technology. By Emil Lindfors, AI capability lead and senior data engineer in Oslo."
 
 # Top-level, not extra: the built-in atom.xml reads config.author and falls back to
 # printing "Unknown" without it. Templates use config.author too, so there is one
@@ -61,7 +61,7 @@ external_level = "warn"
 [extra]
 # Author information (see top-level `author` for the name)
 author_email = "emil@lindfors.no"
-author_bio = "Researcher working on aquaculture innovation, sensor systems, and sustainable technology. Writing about Rust, science, and the intersection of technology and nature."
+author_bio = "AI capability lead and senior data engineer at a data platform consultancy in Oslo, with a PhD in innovation studies. Writes about agent-powered pipelines, talking to your data, coding agents, Rust, and what innovation theory says about all of it."
 
 # Social links (optional)
 github = "https://github.com/emillindfors"

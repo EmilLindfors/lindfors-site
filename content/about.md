@@ -1,6 +1,6 @@
 +++
 title = "About"
-description = "Senior Software Engineer and PhD researcher focused on aquaculture innovation, sustainable technology, and software systems."
+description = "AI capability lead and senior data engineer at Fraktal Oslo, PhD in innovation studies. Agent-powered data pipelines, talk-to-your-data, agent-assisted coding, Rust, and innovation theory applied to all of it."
 template = "simple-page.html"
 [extra]
 toc = false
@@ -24,19 +24,29 @@ toc = false
     </div>
 </div>
 
-I'm a senior software engineer with 15+ years of experience and a PhD in responsible technological innovation. My work sits at the intersection of software engineering, aquaculture, and sustainable technology.
+I lead the AI work at [Fraktal Oslo](https://fraktal.no), a consultancy that builds data platforms, and I am a senior data engineer there. Before that: fifteen years of writing software, five of them alongside a PhD in innovation studies. This site is where the two halves meet.
 
-## What I Do
+## What I do
 
-I build production-grade data platforms for the aquaculture industry, integrating systems like Fishtalk, Mercatus, IoT sensors, and ocean models. My tech stack centers on **Rust** and **Python**, with cloud infrastructure on AWS.
+<!-- emil -->
+I work a lot on how to implement agent-powered pipelines and talk-to-your-data kinds of capabilities, and agent-powered coding.
 
-Currently at [AquaCloud](https://aquacloud.no), I architect data pipelines and integrations for Norwegian salmon farmers.
+In practice that means three things. Finding out which models and endpoints a customer can use, what they cost and what they leak, before the customer has to ask. Putting a semantic layer under an agent so that "what was revenue last quarter" gets one answer instead of two. And running coding agents against every kind of endpoint we can find, local models included, so the recommendation we give is tested and not guessed.
 
-## Research
+The platforms underneath are Rust and Python on open standards, Apache Iceberg among them. We have watched customers adopt technology for years, and the pattern is always the same: the thing that wins is the interface that gets standardised, and the customer who can switch is the one who is fine. So vendor lock-in is not something we like, and modularity is a design goal, not a slogan.
 
-My PhD explored how technology adoption shapes regional industrial development, with a focus on the salmon farming industry in Norway, Australia, and the USA. I conducted 92 interviews and comparative case studies across three continents.
+## The theory half
 
-**Thesis:** *The Evolution of Technological Trajectories: Responsible Innovation and Regional Industrial Path Development*
+My PhD was in innovation studies: responsible innovation, regional industrial path development and evolutionary economic geography, with salmon farming as the case. I did 92 interviews across Norway, Australia and the United States about how an industry takes up a new technology, and what decides whether a region ends up locked into the old path or transformed by the new one.
+
+<!-- emil -->
+Innovation is inherently experimental, so it's hard to foresee the future, and thus we need to be able to change.
+
+That sentence is most of what I took from the PhD into the AI work. The posts here use the theory on purpose, one lens at a time: dominant designs and eras of ferment on [what is happening to BI](/blog/two-defensible-answers/), explore versus exploit on [how a company ends up on one vendor](/blog/which-llm-are-we-allowed-to-use/), path dependence on [why this blog looks the way it does](/blog/building-a-personal-blog-with-zola/). Innovation theory was built on cases like cars, steel and salmon, and it transfers to software better than I expected.
+
+## The site
+
+Everything here is text in one git repo: a [Zola](https://www.getzola.org/) site, a Rust CLI that generates the PDFs, the audio, the share images and the plain-markdown copies, and a Rust Cloudflare Worker for the newsletter. The [infrastructure series](/series/) explains each piece. Opinions are mine, not my employer's.
 
 ## Publications
 
@@ -56,5 +66,7 @@ I maintain several open source projects:
 
 - **[a2a-rs](https://github.com/EmilLindfors/a2a-rs)** — Rust implementation of Google's Agent-to-Agent protocol
 - **[rust-browser-mcp](https://github.com/EmilLindfors/rust-browser-mcp)** — MCP server for AI-powered web navigation
+- **[strata](https://github.com/EmilLindfors/strata)** — Rust lakehouse with a metrics-view semantic layer, used for the Norwegian aquaculture dataset in the BI post
 - **[roms-rs](https://github.com/EmilLindfors/roms-rs)** — Discontinuous Galerkin solver for coastal ocean modeling
+- **[lindfors-site](https://github.com/EmilLindfors/lindfors-site)** — this site: Zola, the site-tools CLI, the newsletter Worker
 
