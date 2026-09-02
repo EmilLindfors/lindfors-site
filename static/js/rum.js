@@ -114,6 +114,27 @@
 
         early.forEach(function (err) { window.OO_RUM.addError(err); });
         early = [];
+
+        // Clicks on links, recorded by hand. The SDK's own click tracking waits for
+        // page activity to settle before it turns a click into an action, and a link
+        // that navigates destroys the page first, so on a static site no internal
+        // link ever becomes an action: the unload beacon carries the view update and
+        // nothing else (verified 2026-09-02 from headless Chrome). A custom action is
+        // recorded at once and rides that beacon. Delegated on document in the capture
+        // phase so it sees the click before anything that might stop it; a click in
+        // the first couple of seconds, before the SDK is up, is lost.
+        document.addEventListener('click', function (e) {
+            var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+            if (!a || e.button !== 0) return;
+            var url;
+            try { url = new URL(a.href, location.href); } catch (err) { return; }
+            if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+            window.OO_RUM.addAction('link', {
+                href: url.href,
+                internal: url.origin === location.origin,
+                text: (a.textContent || '').trim().slice(0, 80)
+            });
+        }, true);
     }
 
     function load() {

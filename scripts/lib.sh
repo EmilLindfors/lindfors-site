@@ -1,16 +1,16 @@
 #!/bin/bash
 # Shared helpers for build.sh and deploy.sh. Source this, don't execute it.
 
-ZOLA_VERSION="0.23.2"
+ZOLA_VERSION="0.23.4"
 ZOLA_IMAGE="ghcr.io/getzola/zola:v$ZOLA_VERSION"
 
 # Run zola, falling back to the pinned docker image.
 #
-# The templates use Tera v2 (components, no macros), so they need 0.23+. On Windows
-# 0.23.x additionally cannot load any templates at all -- it canonicalises the project
-# root to a \\?\ UNC path and the templates glob then matches nothing
-# (https://github.com/getzola/zola/issues/3229) -- so docker is the only way to build
-# here until that is fixed.
+# The templates use Tera v2 (components, no macros), so they need 0.23+. On Windows,
+# 0.23.0-0.23.2 could not load any templates at all -- they canonicalised the project
+# root to a \\?\ UNC path and the templates glob then matched nothing
+# (https://github.com/getzola/zola/issues/3229). 0.23.3 fixed that for local drives,
+# so a local 0.23.3+ works here; docker is the fallback for a machine without one.
 run_zola() {
     local v=""
     if command -v zola >/dev/null 2>&1; then
@@ -26,7 +26,7 @@ run_zola() {
 
     if ! command -v docker >/dev/null 2>&1; then
         echo "Error: this site needs zola 0.23.x (found '${v:-none}') or docker." >&2
-        echo "       Install zola 0.23.2, or install Docker and re-run." >&2
+        echo "       Install zola $ZOLA_VERSION, or install Docker and re-run." >&2
         return 1
     fi
 
