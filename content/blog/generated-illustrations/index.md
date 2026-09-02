@@ -11,6 +11,7 @@ series = ["The infrastructure behind this blog"]
 [extra]
 toc = true
 skip_audio = true
+featured = true
 featured_image = "hero.webp"
 
 [extra.bib]

@@ -224,7 +224,7 @@ Twelve tools: three for context (`get_instructions`, `get_knowledge`, `recall_co
 
 Charts come back as MCP Apps `ui://` resources, not images. assistant-ui mounts the widget in a sandboxed iframe and bridges its JSON-RPC calls back through an API route, so chart type, x and y stay switchable in place without re-running the query. Threads and messages live in IndexedDB, and a restored chart widget comes back live after a reload because the rows, the spec and the resource are all inside the persisted tool result.
 
-Two datasets run in the same UI, with a switcher in the header and separate threads per dataset. Jaffle Shop over Wren, and about 1,800 Norwegian aquaculture sites over a [strata](https://github.com/EmilLindfors/strata) lakehouse, which has weekly lice counts back to 2012 and is the one where the time dimensions and period-over-period comparison actually get exercised. strata calls a cube a metrics view; the MCP server translates at the boundary so both halves of the demo read the same. That boundary is the modularity in practice: the semantic layer underneath changed and nothing above it noticed.
+Two datasets run in the same UI, with a switcher in the header and separate threads per dataset. Jaffle Shop over Wren, and about 1,800 Norwegian aquaculture sites over [strata](https://github.com/EmilLindfors/strata), which has weekly lice counts back to 2012 and is the one where the time dimensions and period-over-period comparison actually get exercised. strata calls a cube a metrics view; the MCP server translates at the boundary so both halves of the demo read the same. That boundary is the modularity in practice: the semantic layer underneath changed and nothing above it noticed.
 
 ## Four things that broke
 

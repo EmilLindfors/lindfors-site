@@ -141,7 +141,7 @@ Cost turned out not to be a factor at all. The whole archive is 84,327 character
 | Cloudflare Aura-1 | $15/M | $1.26 |
 | ElevenLabs Flash | $50/M | $4.22 |
 
-I paid nothing, because `s2.1-pro-free` was free through the end of August 2026. But even the expensive column is one coffee for the entire back catalogue, so the decision came down to voice quality and whether I could self-host it later.
+I paid nothing, because `s2.1-pro-free` is free until the end of August 2026. But even the expensive column is one coffee for the entire back catalogue, so the decision came down to voice quality and whether I could self-host it later.
 
 There are two backend shapes in the code, chosen by an enum: Fish's `POST /v1/tts`, and the OpenAI `POST /v1/audio/speech` shape, which also covers Kokoro-FastAPI and the OpenAI-compatible Fish wrappers. A closed set of two, so static dispatch and no trait object. HTTP goes through `curl`, the way the newsletter sender already does. `site-tools` depends on `toml` and one git crate, and a build-time task does not justify an async runtime.
 

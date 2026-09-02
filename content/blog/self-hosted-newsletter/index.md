@@ -1,10 +1,10 @@
 +++
-title = "I replaced Mailchimp with a Rust Worker and a self-hosted mail server"
-description = "How I built a complete newsletter system with ~700 lines of Rust, a Cloudflare Worker, and Stalwart mail server. No database, no third-party email service, near-zero cost."
+title = "Self-hosting email is not that hard anymore"
+description = "This blog's newsletter runs on a Rust Cloudflare Worker and my own Stalwart mail server, with no database and nothing paid for. What the system looks like after a year of fixes, the DNS records that keep it out of the junk folder, what Hacker News gets wrong about running your own mail, and why a newsletter is a pipeline in the knowledge-diffusion sense."
 date = 2026-02-18
 draft = false
 [taxonomies]
-tags = ["rust", "self-hosting", "email", "cloudflare"]
+tags = ["rust", "self-hosting", "email", "cloudflare", "innovation"]
 categories = ["programming"]
 series = ["The infrastructure behind this blog"]
 
@@ -13,290 +13,211 @@ featured_image = "hero.webp"
 skip_audio = true
 toc = true
 changelog = [
+    { date = 2026-09-02, description = "Rewritten against the system as it runs today: a JMAP MailingList object, double opt-in, one message per reader, the send and event logs on WebDAV, and the DNS records the mail side needs. New title. Adds the local buzz and global pipelines lens from Bathelt, Malmberg & Maskell." },
     { date = 2026-08-28, description = "Dropped the hand-maintained series footer; the series banner at the top of the post replaces it." },
     { date = 2026-08-28, description = "Stalwart 0.16 deleted the REST management API, so subscriber management moved to JMAP and the mailing list principal became a MailingList object. Subscribing is now double opt-in, and the newsletter is sent per recipient rather than fanned out by Stalwart." },
     { date = 2026-08-11, description = "Newsletter commands moved from shell scripts to the site-tools Rust CLI." },
 ]
+
+[extra.bib]
+Bathelt2004 = "10.1191/0309132504ph469oa"
+Granovetter1973 = "10.1086/225469"
+
+[[extra.references]]
+key = "Bathelt2004"
+type = "article"
+author = "Bathelt, H., Malmberg, A., & Maskell, P."
+title = "Clusters and knowledge: local buzz, global pipelines and the process of knowledge creation"
+year = "2004"
+journal = "Progress in Human Geography"
+volume = "28"
+number = "1"
+pages = "31-56"
+doi = "10.1191/0309132504ph469oa"
+
+[[extra.references]]
+key = "Granovetter1973"
+type = "article"
+author = "Granovetter, M. S."
+title = "The Strength of Weak Ties"
+year = "1973"
+journal = "American Journal of Sociology"
+volume = "78"
+number = "6"
+pages = "1360-1380"
+doi = "10.1086/225469"
 +++
 
-**Update, August 2026.** Most of this still stands, but three things in it are now
-wrong: Stalwart 0.16 deleted the management API this post uses, subscribing is double
-opt-in, and the newsletter is no longer fanned out by the mail server. I have corrected
-the descriptions below. The story of *why* each of those changed -- including the fact
-that the `List-Unsubscribe` headers praised here were unsigned and therefore useless for
-the entire life of this post -- is in the follow-up:
-[My newsletter promised one-click unsubscribe and answered every one with a
-400](/blog/newsletter-one-click-unsubscribe/).
+Type your address into the box at the bottom of this page and here is what happens:
 
-I wanted a newsletter for my blog. The requirements were simple: let people subscribe, send them posts when I publish, let them unsubscribe. That's it.
+1. A Rust Worker on Cloudflare checks the address, checks a rate limit, and mails you a signed link. It does not store your address anywhere.
+2. You open the mail and press a button. That button posts back to the Worker, which checks the signature and only then adds you to a mailing list on my own mail server.
+3. A welcome mail arrives with the five most recent posts in it.
+4. When I publish something, one message is written for you alone, with an unsubscribe link that knows who you are, and sent through that same server.
+5. If your mail client offers a native unsubscribe button, it posts to the Worker, which removes you. The link in the footer shows a button that does the same.
 
-Every newsletter platform I looked at wanted $10-30/month, required me to hand over my subscriber list, injected their branding, and came with dashboards I'd never use. For a personal blog that publishes once or twice a month, this felt absurd.
+No database, no newsletter platform, no third party holding the list. The mail server is a $6 VPS that also does my personal email. This is the February 2026 system after a year of fixes, and this post is what it looks like now, what it needs on the DNS side to stay out of junk folders, and why I bothered.
 
-So I built my own. The entire system is ~700 lines of Rust, runs on Cloudflare's free tier, and uses my existing self-hosted mail server for delivery. Monthly cost: $0 on top of infrastructure I already had.
+<!-- more -->
 
-Here's how it works.
+## Why a newsletter
 
-## The architecture
+<!-- emil -->
+Newsletters are a good way to reach people now that I don't want to be on social media much and still want to convey what I have to say to an audience that wants to hear it.
 
-The setup has three components:
+That is most of the reason. The rest is the part of my PhD that was about how knowledge moves between people, because a newsletter is a very clean example of it.
 
-```
-                    ┌──────────────────┐
-                    │   Static Site    │
-                    │  (Cloudflare     │
-                    │   Pages + Zola)  │
-                    └──────┬───────────┘
-                           │
-                    /api/* routes
-                           │
-                    ┌──────▼───────────┐
-                    │  Rust Worker     │
-                    │  (WASM on CF)    │
-                    │                  │
-                    │  • subscribe     │
-                    │  • confirm       │
-                    │  • unsubscribe   │
-                    │  • send-newsletter│
-                    └──────┬───────────┘
-                           │
-                         JMAP
-                           │
-                    ┌──────▼───────────┐
-                    │  Stalwart Mail   │
-                    │  Server (VPS)    │
-                    │                  │
-                    │  • MailingList   │
-                    │    object with a │
-                    │    recipients map│
-                    │  • JMAP sending  │
-                    └──────────────────┘
-```
+Bathelt, Malmberg and Maskell (<a href="#ref-Bathelt2004">2004</a>) asked why firms cluster in the same city when the internet lets them talk to anyone. Their answer was that knowledge travels two ways. *Local buzz* is what you pick up by being in the room: gossip, overheard problems, who is hiring, what did not work. You do not choose it and you cannot switch it off. *Global pipelines* are the opposite: deliberate channels to specific people far away, chosen on both ends, built and maintained on purpose, carrying less, but carrying it to people outside your own room. The classic example is a Silicon Valley firm's standing relationship with a lab in Cambridge. Buzz keeps a cluster coherent; pipelines are where the new ideas come in.
 
-1. **Zola static site** on Cloudflare Pages -- generates the blog, serves HTML
-2. **Rust Cloudflare Worker** -- handles `/api/*` routes for subscribe, unsubscribe, and sending
-3. **Stalwart mail server** -- self-hosted on a VPS, acts as both the subscriber store and the delivery engine
+Social media is buzz at planetary scale, with an algorithm deciding which room you are in. A newsletter is a pipeline. The reader chose it, I chose what goes down it, it carries one post a fortnight, and the whole point is to reach people outside my own cluster. An older result says why that matters: new information tends to arrive through weak ties, not close ones (Granovetter, <a href="#ref-Granovetter1973">1973</a>), and a stranger who reads your writing is the weakest tie there is.
 
-The key insight is that **Stalwart's mailing list eliminates the need for a database entirely**. A Stalwart MailingList object has a `recipients` map, `{"someone@example.com": true}`. That map *is* my subscriber list. No database. No subscriber table. No sync jobs.
+The paper is about firms and regions, and I am one person with a blog, so read the transfer as a way of thinking and not as a finding. But it does make a prediction: the value of a pipeline is in the few people who write back, not in the count.
 
-It held up better than I expected. When I added double opt-in six months later, the obvious cost was a pending-subscribers table -- and it turned out not to need one. That is the [follow-up post](/blog/newsletter-one-click-unsubscribe/).
+<!-- emil -->
+No real purpose other than to attract other like-minded people to get in touch.
 
-## The Cloudflare Worker
+## The parts
 
-The worker is built with [workers-rs](https://github.com/cloudflare/workers-rs), the Rust SDK for Cloudflare Workers. It compiles to WASM and runs on Cloudflare's edge network.
+Three components, all of them things I already had:
 
-The `Cargo.toml` is minimal:
+| Part | What it does | Where |
+|---|---|---|
+| Zola static site | The blog, the subscribe form, and a plain-markdown copy of each newsletter issue at `/newsletter/<slug>.md` | Cloudflare Pages |
+| Rust Worker | `/api/subscribe`, `/api/confirm`, `/api/unsubscribe`, `/api/send-newsletter` | Cloudflare Workers, free tier |
+| [Stalwart](https://stalw.art) mail server | The subscriber list, delivery, and two WebDAV folders of logs | A Hetzner VPS, shared with everything else |
 
-```toml
-[dependencies]
-worker = "0.7"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
-```
+The Worker is [workers-rs](https://github.com/cloudflare/workers-rs), compiled to WASM. It started at about 700 lines in February. It is about 3,100 lines and 52 tests now, and most of the growth is the difference between a thing that works for me and a thing that can be pointed at strangers.
 
-Four dependencies. `pulldown-cmark` is there because the worker renders newsletter markdown to HTML at send time.
+The mail server does the work a newsletter platform would do, through two of its protocols:
 
-### Subscribe
+- **JMAP** for everything the Worker does. The subscriber list is a Stalwart *MailingList* object with a `recipients` map, `{"someone@example.com": true}`. Subscribing is one `x:MailingList/set` call that sets `recipients/<addr>` to `true`; unsubscribing sets it to `null`. Sending is an `Email/set` plus an `EmailSubmission/set` in one request.
+- **WebDAV** for the logs. One folder holds one file per sent issue, and one holds one file per subscribe, confirm and unsubscribe event, with the address stored as an HMAC so the log can answer "did this person consent, and when" without being a list of former subscribers.
 
-When someone enters their email on my site, the form posts to `/api/subscribe`. The worker validates the email, rate-limits the caller, and mails a signed confirmation link. Pressing the button in that mail posts to `/api/confirm`, and only then does the address reach the list:
+That last part is what "no database" means now: one file per fact, on a server the whole system already depends on, written with plain HTTP. Every fact this system holds is a JSON file you can list with `PROPFIND` and read with `GET`, and the Worker never needs a transaction across two of them.
+
+## Subscribe: the pending subscriber lives in the link
+
+Double opt-in is normally where "no database" dies, because you need somewhere to keep the addresses that have asked but not confirmed. Except that the pending state is only `(address, deadline)`, and both fit in the confirmation link if the server can tell its own links from forged ones:
 
 ```rust
-/// Add or remove one address in the mailing list's `recipients` map.
-async fn jmap_set_recipient(
-    cfg: &ListConfig,
-    email: &str,
-    subscribe: bool,
-) -> std::result::Result<(), String> {
-    let value = if subscribe {
-        serde_json::Value::Bool(true)
-    } else {
-        serde_json::Value::Null
-    };
-
-    let mut patch = serde_json::Map::new();
-    patch.insert(format!("recipients/{}", json_pointer_escape(email)), value);
-    // ... wrap in an `update` for x:MailingList/set and send it over JMAP
+fn confirm_signature(secret: &str, email: &str, exp: u64) -> String {
+    sign(secret, &format!("confirm:v1:{}:{}", exp, email))
 }
 ```
 
-That's it. One `x:MailingList/set` call setting `recipients/<addr>` to `true`, or to `null` to remove it. Unsubscribe is the same call with the other value.
+`/api/subscribe` mails that link and touches nothing. `/api/confirm` recomputes the signature, checks the expiry, and then does the JMAP call. The link is good for 48 hours, and the click is itself the demonstrable consent, which is what GDPR asks for. The four decisions inside that one function, and why the confirmation is a button and not the link itself, are in [the one-click unsubscribe post](/blog/newsletter-one-click-unsubscribe/). Read that one before you copy this one.
 
-The original version of this post did a single `addItem` PATCH against Stalwart's REST management API at `/api/principal/{list_id}`, and said "no confirmation email, no double opt-in dance (I should probably add that eventually)". Both of those are gone now: 0.16 deleted the REST API, and the double opt-in dance turned out to be worth doing.
+## Send: one message per reader
 
-### Sending newsletters via JMAP
-
-This is where it gets interesting. Instead of SMTP, I use [JMAP](https://jmap.io/) (JSON Meta Application Protocol) to send emails. JMAP is a modern, stateful, JSON-based protocol designed to replace the IMAP/SMTP combo. Stalwart has full JMAP support.
-
-Sending a newsletter is a single JMAP request with two method calls batched together:
+The February version of this post sent one message to the list address and let Stalwart fan it out to everyone. That was cheaper and it had to go, because the one-click unsubscribe standard, RFC 8058, needs the unsubscribe URL in each message to identify the reader, and a fanned-out message carries the same headers for everyone. So the Worker now reads the `recipients` map and sends once per address:
 
 ```rust
-let body = serde_json::json!({
-    "using": [
-        "urn:ietf:params:jmap:core",
-        "urn:ietf:params:jmap:mail",
-        "urn:ietf:params:jmap:submission"
-    ],
-    "methodCalls": [
-        ["Email/set", {
-            "accountId": account_id,
-            "create": {
-                "draft": {
-                    "from": [{ "name": "Emil Lindfors", "email": from }],
-                    "to": [{ "email": "newsletter@lindfors.no" }],
-                    "subject": subject,
-                    "header:List-Unsubscribe:asRaw":
-                        " <https://lindfors.no/api/unsubscribe>",
-                    "header:List-Unsubscribe-Post:asRaw":
-                        " List-Unsubscribe=One-Click",
-                    "htmlBody": [{ "partId": "html", "type": "text/html" }],
-                    "bodyValues": {
-                        "html": { "value": html_body }
-                    }
-                }
-            }
-        }, "0"],
-        ["EmailSubmission/set", {
-            "accountId": account_id,
-            "create": {
-                "send": {
-                    "identityId": identity_id,
-                    "emailId": "#draft",
-                    "envelope": {
-                        "mailFrom": { "email": from },
-                        "rcptTo": [{ "email": "newsletter@lindfors.no" }]
-                    }
-                }
-            },
-            "onSuccessDestroyEmail": ["#send"]
-        }, "1"]
-    ]
-});
+for email in &recipients {
+    let unsubscribe_url =
+        unsubscribe_link(&site_url, email, &unsubscribe_signature(&secret, email));
+    let html = email_template(/* ... */, &unsubscribe_url);
+
+    match jmap_send_email(&sender, email, &subject, &html, Some(&unsubscribe_url)).await {
+        Ok(()) => sent += 1,
+        Err(e) => {
+            console_error!("Newsletter send to {} failed: {}", email, e);
+            failed.push(email.clone());
+        }
+    }
+}
 ```
 
-The first call (`Email/set`) creates the email as a draft. The second (`EmailSubmission/set`) submits it for delivery, referencing the draft with `#draft`. The `onSuccessDestroyEmail` cleans up the draft after sending. All in one HTTP request.
+Each message carries `List-Unsubscribe` with a signed per-reader URL, `List-Unsubscribe-Post: List-Unsubscribe=One-Click`, and the same URL in the footer. Three things around that loop are worth copying:
 
-That request went to `newsletter@lindfors.no`, the mailing list address, and Stalwart fanned it out to every subscriber. It does not any more. The worker reads the `recipients` map and runs the request above once per address, because the `List-Unsubscribe` header has to name a different URL for each recipient and a fanned-out message can only carry one. Why that turned out to be forced rather than a preference is the [follow-up](/blog/newsletter-one-click-unsubscribe/).
+- **The slug is claimed before anyone is mailed.** A `PUT` with `If-None-Match: *` to `<send-log>/<slug>.json`. Stalwart answers 412 if the file exists, so a second send of the same issue is refused with a 409 before a single message goes out. If the log server cannot be reached, the send fails. It fails closed on purpose: mailing everyone twice is worse than mailing nobody.
+- **Above 45 recipients the send is refused, not truncated.** Every message is a subrequest and Workers caps those at 50 per invocation on the free plan. Mailing the first 45 and reporting success is the worst available outcome, so past that it needs batching, and I have not needed it.
+- **A partial send says so.** `{"sent": N, "failed": [...]}` with a 502, so a human looks at it.
 
-Note the `List-Unsubscribe` and `List-Unsubscribe-Post` headers. They are supposed to make email clients show a native "Unsubscribe" button instead of leaning towards the spam button. Mine did nothing at all for six months, because RFC 8058 requires both headers to be named in the DKIM signature's `h=` tag and Stalwart's default signs five headers, none of which are these.
+The workflow from my side is two commands. `site-tools newsletter gen <post>` writes the issue as markdown with a small YAML header into `static/newsletter/`, the site deploys, and `site-tools newsletter send <slug>` calls the Worker with a bearer token. The Worker fetches the markdown from the live site, renders it with `pulldown-cmark`, and wraps it in a hardcoded HTML template with inline styles, because email clients. It renders fine in Gmail, Apple Mail and Outlook.
 
-## The Stalwart side
+## The mail side, which is the part people warn you about
 
-[Stalwart](https://stalw.art) is a mail server written in Rust. I run it on a small VPS. It handles SMTP, IMAP and JMAP. Up to 0.16 it also had a REST management API, which is where the original version of this post did its subscriber management; 0.16 deleted it, and everything now goes over JMAP.
+<!-- emil -->
+Before, I have been scared about DKIM and have gotten issues with having been in a junk folder because of not having everything in order on the mail side, but now I have fixed DNSSEC, DKIM, DANE and all the bells and whistles so that we should have proper delivery, and from the initial testing it seems to work fine.
 
-The only Stalwart configuration specific to newsletters is a mailing list. As of 0.16 that is a MailingList object, id `e`, with:
+In February this domain had SPF, DKIM and DMARC and nothing else, and mail from it had been landing in junk folders. "Everything in order" is a list, and every item on it is a DNS record you can check from anywhere. I looked every one of these up from Cloudflare's resolver while writing this section, and all of them came back DNSSEC-validated:
 
-- An email address (`newsletter@lindfors.no`)
-- A `recipients` map, `{"someone@example.com": true}`, holding the subscribers
+| Record | What it says | Why it is there |
+|---|---|---|
+| `DS` at the registrar | DNSSEC, algorithm 13 | Every record below is signed, so a receiver can trust the rest |
+| `TXT` at the apex | `v=spf1 mx -all` | Only the MX host may send for this domain |
+| `TXT` at `202412r._domainkey` and `202412e._domainkey` | An RSA key and an ed25519 key | Two DKIM signatures on every message |
+| `TXT` at `_dmarc` | `v=DMARC1; p=reject; rua=mailto:postmaster@…` | Anything failing SPF and DKIM is rejected, and I get the reports |
+| `TXT` at `_mta-sts` plus a policy file over HTTPS | `mode: enforce`, `mx: mail.lindfors.no` | Senders must use TLS to reach me |
+| `TXT` at `_smtp._tls` | `v=TLSRPTv1; rua=mailto:…` | Reports when that TLS fails |
+| `TLSA` at `_25._tcp.mail` | Four records, three pinning the CA chain and one the leaf | DANE: the certificate is pinned in signed DNS |
+| `PTR` for the server's IP | `mail.lindfors.no` | Reverse DNS matches the hostname it announces |
 
-Stalwart will still deliver a copy to every recipient if you mail the list address, and that is a perfectly good delivery mechanism if you do not need per-recipient unsubscribe links. I do, so the worker sends individually instead.
+Two of those took real work to get right. The first was the DKIM `h=` tag, which names the headers a signature covers. Stalwart's default signs five, and the two `List-Unsubscribe` headers are not among them. I sent them unsigned for the first six months of this newsletter, and unsigned they are useless. RFC 8058 requires them signed. That is one setting on the `DkimSignature` object, and it is the setting that will silently revert if you turn on automatic key rotation, so check it after any rotation.
 
-I created the list through Stalwart's admin interface. No special configuration files. The worker manages members with `x:MailingList/set`, which needs the `sysMailingListUpdate` permission on the account it authenticates as.
+The second was the hostname. Stalwart builds messages with its `mail-builder` crate, which reads `gethostname()` and falls back to the literal `localhost`, so every message I had ever sent carried a `Message-ID` ending in `@localhost`. That is a well-known junk-folder smell. I set the system hostname and it went away.
 
-## The send workflow
+Stalwart made the rest easy. It generates the DKIM keys, runs the DMARC and TLS reporting, serves the MTA-STS policy, and its admin page lists the exact records it wants published. The job is pasting them into your DNS provider and then checking, with a tool like [internet.nl](https://internet.nl) or a mail-tester, that they are what you think they are. Do that check before the first message, not after the first junk folder.
 
-I write blog posts in markdown with Zola. When I want to send a post as a newsletter:
+## The Hacker News objection
 
-**1. Generate the newsletter markdown:**
+The advice you will get, stated at full strength: never self-host email. Your IP shares a reputation with whoever had it before you. Microsoft will silently drop your mail and never tell you why. The blocklists are run by volunteers with no appeals process. One misconfiguration and you are on a list for months. Gmail changes its bulk-sender rules every year. You will spend your weekends on it, and the day you stop paying attention is the day your mail stops arriving.
 
-```bash
-site-tools newsletter gen content/blog/my-post/index.md
-```
+Every one of those was true, and some are still true some of the time.
 
-This extracts the post body, strips markup that only makes sense on the web (math blocks, figures), and writes a clean markdown file to `static/newsletter/my-post.md` with YAML frontmatter:
+<!-- emil -->
+It's not that hard anymore to self-host email. There are so many people on Hacker News, for example, who say you should never attempt something like that, but so far it's been very good.
 
-```yaml
----
-title: "My Post Title"
-date: "2026-02-10"
-description: "Post description"
-url: "https://lindfors.no/blog/my-post/"
----
-```
+What changed is that the work moved into the server. Ten years ago "everything in order" meant Postfix, Dovecot, OpenDKIM, OpenDMARC, a Let's Encrypt hook and a policy daemon, each configured separately and each able to drift. Stalwart is one Rust binary that does SMTP, IMAP, JMAP, DKIM signing, ARC, DMARC and TLS reporting, MTA-STS and the admin UI, with its configuration in RocksDB. And the standards themselves have settled: SPF, DKIM, DMARC, MTA-STS, DANE and DNSSEC have not changed shape in years, and a receiver that sees all of them and a matching PTR has very little reason left to distrust you. The table above is the whole job.
 
-**2. Deploy the site** so the `.md` file is accessible at `https://lindfors.no/newsletter/my-post.md`.
+Three concessions, because the objection is not all wrong:
 
-**3. Send:**
+- **Volume gates are real.** Gmail shows its native unsubscribe button only to bulk senders, roughly 5,000 messages a day to its addresses, so one-click is implemented and signed here and I will never see it work on my own mail.
+- **The list is short.** A handful of readers is not a stress test of reputation. I will know more after a year of issues.
+- **Rate limiting is still not finished.** The Workers bindings stop bursts and nothing slower, and the WAF rule that would stop a patient attacker is still on the list.
 
-```bash
-site-tools newsletter send my-post
-```
+<!-- emil -->
+I know how to set it up for a company now, in case anyone needs self-hosted email and wants to get off Microsoft or Google.
 
-This reads the admin key from `.env` and calls the worker:
-
-```bash
-curl -s --fail-with-body -X POST "https://lindfors.no/api/send-newsletter" \
-  -H "Authorization: Bearer $ADMIN_KEY" \
-  -H 'Content-Type: application/json' \
-  -d '{"slug":"my-post"}'
-```
-
-The admin key started out in the query string, where it ended up in logs. It is a bearer header now. `--fail-with-body` is there because `curl -s` exits 0 on an HTTP 500, so for a while the CLI reported failed sends as successes.
-
-The worker fetches the markdown from my site, parses the frontmatter, renders the body to HTML with `pulldown-cmark`, wraps it in an email template, and sends one copy per recipient via JMAP.
-
-The email template is inline in the worker -- hardcoded HTML with inline styles (because email clients). No template engine, no CSS framework. It looks clean and renders consistently across Gmail, Apple Mail, and Outlook.
+That last sentence is the one I did not expect to write in February. Sovereignty over your own data has become a live question in the EU this year, and I wrote about the same trend on the model side in [the Codex fork post](/blog/forking-codex-for-any-endpoint/): the customer who can leave is the customer who is fine. Mail is the oldest federated system we have. It was designed so that anyone can run a node, and after a decade in which that stopped being practical, it is practical again.
 
 ## What this costs
 
 | Component | Cost |
 |---|---|
 | Cloudflare Pages | Free |
-| Cloudflare Worker | Free (100k requests/day) |
-| Stalwart on VPS | ~$5/month (shared with other services) |
-| Domain | ~$10/year |
+| Cloudflare Worker | Free, 100k requests a day |
+| Stalwart on a Hetzner VPS | About $6 a month, shared with mail, auth and a secrets vault |
+| Domain | About $10 a year |
 
-Compare this to Mailchimp ($13/month for 500 subscribers), ConvertKit ($29/month), or Substack (10% of paid subscriptions). For a personal blog newsletter, the economics aren't even close.
+Mailchimp is $13 a month for 500 subscribers, ConvertKit is $29, Substack takes 10% of anything paid. This blog publishes twice a month to people who asked for it, and none of those platforms would do anything for it that the table above does not. The comparison is not close.
 
-## What's missing
+## What is missing
 
-This is not a replacement for Mailchimp if you need marketing features. Things I don't have:
-
-- **Analytics** -- No open tracking, no click tracking. I don't care about this, but you might.
-- **Bounce handling** -- Stalwart handles bounces at the SMTP level, but I don't automatically remove bouncing addresses from the list.
-- **Pretty email editor** -- I write markdown. The template is hardcoded Rust. This is a feature, not a bug.
-- **Scheduling** -- I run a shell script when I want to send. No scheduled sends.
-- **Any list longer than 45 addresses.** Since the switch to per-recipient sending, each message is a subrequest and Workers caps those per invocation. Past 45 the send is refused rather than truncated, and getting further needs batching or a queue.
-
-For a personal blog with a handful of subscribers who actually want to read what I write, none of these are real problems.
-
-Double opt-in used to be on this list. It isn't any more, and adding it did not cost me a database.
+- **Analytics.** No open tracking, no click tracking. I do not want it, but you might.
+- **Bounce handling.** An address that hard-bounces stays on the list. The send log has the raw material and the rule is not written.
+- **Scheduling.** I run one command when I want to send. There is no cron.
+- **A list longer than 45.** See above.
+- **A pretty editor.** I write markdown and the template is Rust. That one is a feature.
 
 ## Workers-rs tips
 
-A few things I learned building this:
+Three things that cost me time, all still true on `worker` 0.8:
 
-**Route order matters.** In workers-rs, register GET routes before POST routes for the same path. I had the unsubscribe GET page and POST handler on the same `/api/unsubscribe` path and the order of registration determined which matched.
+- **Register GET before POST for the same path.** The unsubscribe page and the unsubscribe handler share `/api/unsubscribe`, and registration order decided which one matched.
+- **`Headers` methods take `&self`.** You do not need `let mut headers`.
+- **`strip = true` breaks `worker-build`.** It removes the wasm `target_features` section that wasm-bindgen reads to detect reference types, and the build dies with "externref table required". Use `strip = "debuginfo"`; the artifact is the same size because wasm-opt drops the names anyway.
 
-**Headers aren't mutable the way you'd expect.** `Headers::new()` methods take `&self`, not `&mut self`. You don't need `let mut headers`.
+## What I'd tell you
 
-**No `.url()` on RouteContext.** If you need the request URL (for query parameters), use `req.url()?` rather than trying to get it from the route context.
+**Publish every record in the table before the first message.** Then check them from outside. The junk folder is where you find out you skipped one.
 
-**Release profile matters for WASM size.** I use aggressive optimization:
+**Sign the `List-Unsubscribe` headers.** They do nothing unsigned, and nothing will tell you.
 
-```toml
-[profile.release]
-lto = true
-strip = true
-codegen-units = 1
-```
+**Double opt-in from day one, and keep the pending state in the link.** You do not need a table for it, and a list you cannot prove consent for is a list you cannot mail.
 
-## Why not just use Substack?
+**Send one message per reader.** It is the only way to give each reader a link that knows who they are, and everything downstream of that, from one-click to a send log, gets simpler.
 
-Substack is free for free newsletters. Here's why I didn't:
+**Measure your rate limiter.** I sent 18 sequential requests through a 15-per-minute limit and got zero 429s. The description said otherwise.
 
-1. **I already have a blog.** My posts are markdown in a git repo, rendered by Zola, deployed to Cloudflare. I don't want a second copy of my content on someone else's platform.
-2. **I already run a mail server.** Stalwart was set up for personal email. The newsletter is just one mailing list on it.
-3. **Ownership.** My subscriber list is a JSON map in my mail server. I can export it with one API call. No platform lock-in, no "download your data" request, no worrying about a service shutting down or changing terms.
-4. **It's a fun project.** The whole thing took an afternoon. It's 700 lines of Rust that I fully understand and can modify. That has value.
-
-On that last point: it is about 2,200 lines now, after double opt-in, rate limiting, signed tokens and 30 tests. Most of that growth was the difference between a thing that works for me and a thing that can be pointed at strangers.
-
-## The newsletter stack
-
-- **API**: [workers-rs](https://github.com/cloudflare/workers-rs) (Rust, compiled to WASM)
-- **Mail server**: [Stalwart](https://stalw.art/) (Rust) on a VPS
-- **Protocol**: JMAP, for both sending and subscriber management
-- **Markdown rendering**: [pulldown-cmark](https://github.com/raphlinus/pulldown-cmark) (in the worker, at send time)
-- **DNS**: Cloudflare (SPF, DKIM, DMARC records)
-
-The code for the worker is [on GitHub](https://github.com/emillindfors/lindfors-site). If you're running Stalwart and want to try this, the setup is straightforward -- a worker, a mailing list, and a few environment variables. Read [the follow-up](/blog/newsletter-one-click-unsubscribe/) before you copy the unsubscribe handling out of this one.
+The Worker is [on GitHub](https://github.com/emillindfors/lindfors-site), and the box at the bottom of this page is the live system. If your company wants off Microsoft or Google and needs someone who has done it, write to me.

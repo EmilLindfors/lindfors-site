@@ -13,6 +13,7 @@ featured_image = "hero.webp"
 skip_audio = true
 toc = true
 changelog = [
+    { date = 2026-09-02, description = "Light edit for readability. The pipeline described is the March one; the follow-up post in this series covers what has changed since." },
     { date = 2026-08-28, description = "Moved into its own series, Citations on a blog, and gained a follow-up on resolving citations against crossref." },
     { date = 2026-08-28, description = "Dropped the hand-maintained series footer; the series banner at the top of the post replaces it." },
     { date = 2026-08-11, description = "Updated for Zola 0.23: shortcodes and Tera macros replaced by components." },
@@ -41,7 +42,7 @@ complex trade-offs.
 
 And have it render on the web as properly linked inline citations with a references section at the bottom, complete with journal names, volumes, DOIs, and links. I also want a downloadable PDF that looks like an academic paper, not a printed web page.
 
-Here's what this requires:
+Here's what you need for that:
 
 1. A citation database (Zotero)
 2. A way to resolve `@citekeys` to bibliographic data
@@ -150,7 +151,7 @@ For inline references, I use a minimal component:
 
 In a post: `{{<citation key="smith2024" num="1" />}}` renders as a clickable `[1]` that jumps to the reference at the bottom.
 
-This was a shortcode in `templates/shortcodes/reference.html` until Zola 0.23, which removed shortcodes entirely and replaced Tera's macros with components. The call syntax is the part that changed most -- `{{<name arg="value" />}}` rather than `{{ name(arg="value") }}`, and non-string arguments have to go in braces.
+This was a shortcode in `templates/shortcodes/reference.html` until Zola 0.23, which removed shortcodes entirely and replaced Tera's macros with components. The call syntax is the part that changed most: `{{<name arg="value" />}}` instead of `{{ name(arg="value") }}`, and non-string arguments have to go in braces.
 
 ### The references section
 
@@ -191,7 +192,7 @@ The `bib.reference` component dispatches on reference type:
 {% endcomponent bib.reference %}
 ```
 
-Components are registered globally by name, so there's no `{% import %}` and no `self::` prefix. The dotted `bib.` names are just namespacing. The parameter is `entry` rather than `ref` because `ref` as a variable name next to a `bib.`-prefixed component call was asking for trouble.
+Components are registered globally by name, so there's no `{% import %}` and no `self::` prefix. The dotted `bib.` names are just namespacing. The parameter is called `entry`, not `ref`, because `ref` as a variable name next to a `bib.`-prefixed component call was asking for trouble.
 
 Each type component knows which fields to expect. An article gets journal, volume, issue, pages, and DOI. A book gets publisher and ISBN. A conference paper gets proceedings title. They handle missing fields gracefully -- not every article has a DOI, not every book has a URL.
 
@@ -234,7 +235,7 @@ This means readers can cite *my* posts the same way I cite others. The whole cha
 
 Because the bibliographic data lives in TOML frontmatter as structured data, it feeds multiple renderers from a single source:
 
-- **HTML** -- Tera macros render the references section with DOI links and semantic markup
+- **HTML** -- Tera components render the references section with DOI links and semantic markup
 - **PDF** -- the same frontmatter drives [Typst-generated PDFs](/blog/typst-for-blogging/) with properly typeset references
 - **Newsletter** -- the [send pipeline](/blog/self-hosted-newsletter/) gets a simplified version
 
@@ -242,7 +243,7 @@ The citation processing step runs first in the build, before PDFs are generated 
 
 ## Why not just use footnotes?
 
-Footnotes would be simpler. Markdown supports them natively. But they're not the same thing as citations:
+Footnotes would be simpler, and if you only ever cite a thing once they may be all you need. Markdown supports them natively. But they're not the same thing as citations:
 
 1. **Footnotes don't have structured data.** A footnote is just text. A citation has authors, year, journal, DOI -- fields I can format differently in different contexts.
 2. **Footnotes aren't reusable.** If I cite the same paper in two posts, I retype the reference. With Zotero as the source, I write `@iversenProductionCostCompetitiveness2020` and the full reference appears.
@@ -251,7 +252,7 @@ Footnotes would be simpler. Markdown supports them natively. But they're not the
 
 ## Why not Pandoc?
 
-[Pandoc](https://pandoc.org/) has excellent citation support through its `citeproc` filter. It reads `.bib` files, supports CSL styles, and can output to virtually any format. For many people, Pandoc is the right answer.
+[Pandoc](https://pandoc.org/) has excellent citation support through its `citeproc` filter. It reads `.bib` files, supports CSL styles, and can output to virtually any format. For many people, Pandoc is the right answer, and if you already build with it, stop reading here and use `citeproc`.
 
 I didn't use it because:
 
@@ -270,7 +271,7 @@ I didn't use it because:
 
 ## What I'd change
 
-If I were starting over:
+If you are building this yourself, or I were starting over:
 
 - **CSL support in zotero-cite.** Right now the formatting is hardcoded in Tera components. Supporting CSL styles would let me switch between APA, IEEE, Vancouver, etc. without changing templates.
 - **Automatic numbering.** Currently I manually assign citation numbers with `{{<citation key="..." num="1" />}}`. It should auto-number based on order of appearance.
