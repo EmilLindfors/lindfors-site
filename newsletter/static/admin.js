@@ -658,6 +658,16 @@ function renderReaders(rum) {
         "No link clicks in the window.",
     );
     renderRows(
+        document.getElementById("readers-issues"),
+        rum.issues,
+        [
+            { key: "issue", label: "Issue" },
+            { key: "views", label: "Landings", num: true },
+            { key: "sessions", label: "Sessions", num: true },
+        ],
+        "No visits from an issue in the window.",
+    );
+    renderRows(
         document.getElementById("readers-countries"),
         rum.countries,
         [
@@ -765,22 +775,55 @@ async function boot() {
 
     document.getElementById("sign-out").hidden = false;
 
-    const response = await fetch("/api/overview", {
-        headers: { Authorization: "Bearer " + token, Accept: "application/json" },
+    await refresh(config, token);
+
+    // The numbers are fetched, not built in, so a tab left open should not show the
+    // morning's figures all day: fetch again on a timer, and when the tab comes back
+    // into view, with a short floor so a flurry of tab switches is one request.
+    setInterval(() => refresh(config), REFRESH_MS);
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible" && Date.now() - lastRefresh > REFRESH_FLOOR_MS) {
+            refresh(config);
+        }
     });
+}
 
-    if (response.status === 401) {
-        // The Worker disagrees with our token. Nothing to do but start again.
-        document.getElementById("sign-out").hidden = true;
-        show("panel-signin");
-        return;
-    }
-    if (!response.ok) {
-        fail("The API answered " + response.status + ".");
-        return;
-    }
+const REFRESH_MS = 5 * 60 * 1000;
+const REFRESH_FLOOR_MS = 30 * 1000;
+let lastRefresh = 0;
+let refreshing = false;
 
-    render(await response.json());
+/** Fetch the overview and render it. A refresh that finds no token shows sign-in. */
+async function refresh(config, token) {
+    if (refreshing) return;
+    refreshing = true;
+    try {
+        token = token || (await accessToken(config));
+        if (!token) {
+            show("panel-signin");
+            return;
+        }
+        const response = await fetch("/api/overview", {
+            headers: { Authorization: "Bearer " + token, Accept: "application/json" },
+            cache: "no-store",
+        });
+
+        if (response.status === 401) {
+            // The service disagrees with our token. Nothing to do but start again.
+            document.getElementById("sign-out").hidden = true;
+            show("panel-signin");
+            return;
+        }
+        if (!response.ok) {
+            fail("The API answered " + response.status + ".");
+            return;
+        }
+
+        render(await response.json());
+        lastRefresh = Date.now();
+    } finally {
+        refreshing = false;
+    }
 }
 
 if (typeof document !== "undefined") {

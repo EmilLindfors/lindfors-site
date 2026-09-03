@@ -38,7 +38,7 @@ use std::sync::Arc;
 
 use axum::{
     extract::State,
-    http::{header, HeaderMap, StatusCode},
+    http::{header, HeaderMap, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -324,7 +324,11 @@ async fn overview(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
         None => None,
     };
 
-    Json(Overview { subscribers, events, sends, subscriber_list, deliveries, rum, errors }).into_response()
+    // Assembled fresh on every call, and said so: nothing between here and the page
+    // may hand back an earlier answer.
+    let mut response = Json(Overview { subscribers, events, sends, subscriber_list, deliveries, rum, errors }).into_response();
+    response.headers_mut().insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
 }
 
 // ---------------------------------------------------------------------------

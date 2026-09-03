@@ -55,6 +55,9 @@ pub struct RumOverview {
     pub links: Vec<Value>,
     /// `{country, sessions}`.
     pub countries: Vec<Value>,
+    /// `{issue, views, sessions}`: landing views whose URL carried `?issue=<slug>`,
+    /// which every link in a newsletter issue does. Per issue, never per reader.
+    pub issues: Vec<Value>,
     /// One row: `{lcp_p75, fcp_p75, ttfb_p75, views}`, in nanoseconds as the SDK sends.
     pub vitals: Vec<Value>,
 }
@@ -162,13 +165,27 @@ pub mod sql {
     }
 
     /// One row per view event; a long read that flushes several times produces
-    /// several rows for the same `view_id`, so views are counted distinct.
+    /// several rows for the same `view_id`, so views are counted distinct. The query
+    /// string is dropped first, so a landing from a newsletter issue (`?issue=...`)
+    /// counts with the page it landed on rather than as a page of its own.
     pub fn pages() -> String {
         format!(
-            "SELECT view_url AS url, count(DISTINCT view_id) AS views, \
-             count(DISTINCT session_id) AS sessions \
+            "SELECT regexp_replace(view_url, '\\?.*$', '') AS url, \
+             count(DISTINCT view_id) AS views, count(DISTINCT session_id) AS sessions \
              FROM {STREAM} WHERE type = 'view' AND {NOT_LOCAL} \
-             GROUP BY view_url ORDER BY views DESC LIMIT 20"
+             GROUP BY url ORDER BY views DESC LIMIT 20"
+        )
+    }
+
+    /// Visits that started from a newsletter issue: the `?issue=<slug>` that
+    /// `site-tools newsletter gen` puts on every link in one. The same parameter for
+    /// every recipient, so this counts readers an issue brought, and nothing about who.
+    pub fn issues() -> String {
+        format!(
+            "SELECT regexp_replace(view_url, '^.*[?&]issue=([^&#]+).*$', '\\1') AS issue, \
+             count(DISTINCT view_id) AS views, count(DISTINCT session_id) AS sessions \
+             FROM {STREAM} WHERE type = 'view' AND view_url LIKE '%issue=%' AND {NOT_LOCAL} \
+             GROUP BY issue ORDER BY views DESC LIMIT 20"
         )
     }
 
@@ -234,14 +251,16 @@ pub async fn overview(
         sql::links(),
         sql::countries(),
         sql::vitals(),
+        sql::issues(),
     );
-    let (daily, pages, referrers, links, countries, vitals) = tokio::join!(
+    let (daily, pages, referrers, links, countries, vitals, issues) = tokio::join!(
         search(client, config, &queries.0, SERIES_DAYS, 200),
         search(client, config, &queries.1, TABLE_DAYS, 20),
         search(client, config, &queries.2, TABLE_DAYS, 20),
         search(client, config, &queries.3, TABLE_DAYS, 20),
         search(client, config, &queries.4, TABLE_DAYS, 10),
         search(client, config, &queries.5, TABLE_DAYS, 1),
+        search(client, config, &queries.6, TABLE_DAYS, 20),
     );
 
     let mut take = |name: &str, result: Result<Vec<Value>, String>| match result {
@@ -261,6 +280,7 @@ pub async fn overview(
         links: take("links", links),
         countries: take("countries", countries),
         vitals: take("vitals", vitals),
+        issues: take("issues", issues),
     }
 }
 
@@ -284,6 +304,19 @@ pub fn iso_date(micros: i64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The SQL reaches OpenObserve as text, so the escapes have to come out right in
+    /// the string, not just in the Rust source: one backslash before `?` and `1`.
+    #[test]
+    fn pages_group_on_the_url_without_its_query_and_issues_extract_the_slug() {
+        let pages = sql::pages();
+        assert!(pages.contains("regexp_replace(view_url, '\\?.*$', '') AS url"), "{pages}");
+        assert!(pages.contains("GROUP BY url"));
+        let issues = sql::issues();
+        assert!(issues.contains("issue=([^&#]+).*$', '\\1') AS issue"), "{issues}");
+        assert!(issues.contains("view_url LIKE '%issue=%'"));
+        assert!(issues.contains("GROUP BY issue"));
+    }
 
     #[test]
     fn the_search_url_is_the_org_search_endpoint() {
