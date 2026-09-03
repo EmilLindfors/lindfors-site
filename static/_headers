@@ -9,6 +9,13 @@
   Content-Type: text/markdown; charset=utf-8
   Access-Control-Allow-Origin: *
 
+/.well-known/atproto-did
+  Content-Type: text/plain; charset=utf-8
+
+# The Bluesky handle is the domain: the account's DID in that file is the proof
+# (the DNS TXT record at _atproto is the other accepted proof). Extension-less, so
+# Cloudflare would otherwise guess the type.
+
 # The .md files are the negotiated representation of each post, also addressable
 # directly. Cloudflare would otherwise serve them as application/octet-stream, which
 # makes clients download rather than read them. CORS is open because these exist to

@@ -71,7 +71,8 @@ github = "https://github.com/emillindfors"
 linkedin = "https://linkedin.com/in/emil-havbruk"
 mastodon = "https://mastodon.social/@emillindfors"
 fediverse_creator = "@emillindfors@mastodon.social"
-# bluesky = "https://bsky.app/profile/<handle>"
+# The Bluesky handle is the domain itself, proven by static/.well-known/atproto-did.
+bluesky = "https://bsky.app/profile/lindfors.no"
 
 # Enable KaTeX math rendering
 katex = true
