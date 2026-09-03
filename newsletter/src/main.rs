@@ -22,6 +22,7 @@
 //! host a plain `cargo build --target`.
 
 mod auth;
+mod catchup;
 mod crypto;
 mod db;
 mod mail;
@@ -436,8 +437,26 @@ async fn main() {
             }
             return;
         }
+        // The weekly archive send, from cron through the `catch-up` wrapper. `catchup.rs`
+        // has the rule; `--dry-run` prints the pick and sends nothing.
+        Some("catch-up") => {
+            let dry_run = args.iter().skip(1).any(|a| a == "--dry-run");
+            if let Some(other) = args.iter().skip(1).find(|a| *a != "--dry-run") {
+                eprintln!("lindfors-newsletter catch-up: unknown option {other}");
+                std::process::exit(2);
+            }
+            let app = build_app(config, db);
+            match catchup::run(&app, dry_run).await {
+                Ok(report) => println!("{report}"),
+                Err(e) => {
+                    eprintln!("{e}");
+                    std::process::exit(1);
+                }
+            }
+            return;
+        }
         Some(other) => {
-            eprintln!("lindfors-newsletter: unknown command {other}; commands: migrate, assume-delivered, send");
+            eprintln!("lindfors-newsletter: unknown command {other}; commands: migrate, assume-delivered, send, catch-up");
             std::process::exit(2);
         }
         None => {}

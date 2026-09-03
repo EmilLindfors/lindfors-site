@@ -546,6 +546,19 @@ pub async fn send_newsletter(State(app): State<Arc<App>>, headers: HeaderMap, bo
     }
 }
 
+/// The title of a published issue, read from its file on the site. Also the cheapest
+/// proof that the issue still exists there, which the catch-up wants before it picks.
+pub async fn issue_title(app: &App, slug: &str) -> Result<String, String> {
+    let url = format!("{}/newsletter/{slug}.md", app.config.site_internal_url.trim_end_matches('/'));
+    let text = match app.client.get(&url).send().await {
+        Ok(r) if r.status().is_success() => r.text().await.unwrap_or_default(),
+        Ok(r) => return Err(format!("{url} answered {}", r.status().as_u16())),
+        Err(e) => return Err(format!("could not fetch {url}: {e}")),
+    };
+    let (meta, _) = parse_frontmatter(&text);
+    Ok(meta.get("title").cloned().unwrap_or_else(|| slug.to_string()))
+}
+
 /// What a send did: every recipient is one of these three.
 pub struct SendOutcome {
     pub sent: usize,

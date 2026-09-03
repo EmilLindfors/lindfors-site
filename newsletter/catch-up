@@ -1,0 +1,37 @@
+#!/bin/sh
+# The weekly archive send, from root's crontab, with the service's own environment.
+#
+# Installed root-owned at /opt/lindfors-newsletter/catch-up. Same shape as send-issue:
+# source the environment file, hand over to the binary. `catchup.rs` has the rule; in
+# short, if no issue went out this week, mail the oldest one some current subscriber
+# has not had, as a catch-up, with "From the archive: " in front of the title.
+#
+#   /opt/lindfors-newsletter/catch-up [--dry-run]
+#
+# Cron, Wednesday 07:00 UTC (09:00 Oslo), the day after the publisher's Tuesday slot,
+# so a week with a new post never gets two mails:
+#
+#   0 7 * * 3 /opt/lindfors-newsletter/catch-up --dry-run >> /var/log/lindfors-newsletter/catch-up.log 2>&1
+#
+# Drop --dry-run once the log has shown sensible picks for a few weeks.
+
+set -e
+
+env_file=/etc/lindfors-newsletter.env
+bin=/opt/lindfors-newsletter/lindfors-newsletter
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "catch-up: must run as root; $env_file is root-only" >&2
+    exit 1
+fi
+if [ ! -f "$env_file" ]; then
+    echo "catch-up: $env_file is missing" >&2
+    exit 1
+fi
+
+set -a
+# shellcheck disable=SC1090
+. "$env_file"
+set +a
+
+exec "$bin" catch-up "$@"

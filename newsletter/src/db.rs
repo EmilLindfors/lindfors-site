@@ -284,6 +284,21 @@ impl Db {
         Ok(row.get::<_, i64>(0) > 0)
     }
 
+    /// Slugs claimed in the current ISO week (Postgres weeks start on Monday). The
+    /// catch-up job's one-mail-a-week check: a row here, from the publisher or a
+    /// hand send, means the week is spoken for.
+    pub async fn sends_this_week(&self) -> Result<Vec<String>, String> {
+        let c = self.client().await?;
+        let rows = c
+            .query(
+                "SELECT slug FROM sends WHERE date_trunc('week', claimed_at) = date_trunc('week', now()) ORDER BY claimed_at",
+                &[],
+            )
+            .await
+            .map_err(|e| format!("sends: {e}"))?;
+        Ok(rows.iter().map(|r| r.get(0)).collect())
+    }
+
     /// Every issue, oldest first.
     pub async fn sends(&self) -> Result<Vec<SendRecord>, String> {
         let c = self.client().await?;

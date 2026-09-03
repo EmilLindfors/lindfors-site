@@ -155,14 +155,24 @@ secret containing a space or a semicolon executes half of itself otherwise.
 `depend()` needs `postgresql`, and `db.check()` proves the connection and the four
 tables at startup, so a missing schema is a refusal to boot with the reason.
 
-Three operator commands run the binary with the same environment sourced and exit:
+Four operator commands run the binary with the same environment sourced and exit:
 
 ```bash
 sudo sh -c '. /etc/lindfors-newsletter.env; export $(grep -o "^[A-Z0-9_]*" /etc/lindfors-newsletter.env | tr "
 " " ");   /opt/lindfors-newsletter/lindfors-newsletter migrate'                       # schema.sql, then seal any plaintext rows
 sudo sh -c '...; /opt/lindfors-newsletter/lindfors-newsletter assume-delivered <slug> [email]'   # mark an old issue as delivered
 sudo /opt/lindfors-newsletter/send-issue <slug> [--subject <text>] [--catch-up]                 # send one issue, no ADMIN_KEY
+sudo /opt/lindfors-newsletter/catch-up [--dry-run]                                              # the weekly archive send
 ```
+
+`catch-up` is the weekly job (`catchup.rs`; the wrapper is in this directory, cron line
+in its header): if no row in `sends` was claimed this ISO week, it takes the oldest
+issue in send order that some current subscriber has no delivery of, checks the issue
+file is still on the site, and sends it as a catch-up with "From the archive: " in
+front of the title. A `partial` from an earlier week retries itself this way. One mail
+per subscriber per week, welcome and confirmation aside, is the invariant; the
+publisher's Tuesday send occupies the week, so the job runs on Wednesdays. It runs with
+`--dry-run` from root's crontab until the log has shown a few sensible picks.
 
 `send` is the same send the HTTP route makes, without the key: `send-issue` is a
 root-owned wrapper (this directory, installed to `/opt/lindfors-newsletter/`) that
