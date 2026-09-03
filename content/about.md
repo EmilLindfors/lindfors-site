@@ -42,7 +42,7 @@ My PhD was in innovation studies: responsible innovation, regional industrial pa
 <!-- emil -->
 Innovation is inherently experimental, so it's hard to foresee the future, and thus we need to be able to change.
 
-That sentence is most of what I took from the PhD into the AI work. The posts here use the theory on purpose, one lens at a time: dominant designs and eras of ferment on [what is happening to BI](/blog/two-defensible-answers/), explore versus exploit on [how a company ends up on one vendor](/blog/which-llm-are-we-allowed-to-use/), path dependence on [why this blog looks the way it does](/blog/building-a-personal-blog-with-zola/). Innovation theory was built on cases like cars, steel and salmon, and it transfers to software better than I expected.
+That sentence is most of what I took from the PhD into the AI work. The posts here use the theory on purpose, one lens at a time: dominant designs and eras of ferment on what is happening to BI, explore versus exploit on [how a company ends up on one vendor](/blog/which-llm-are-we-allowed-to-use/), path dependence on [why this blog looks the way it does](/blog/building-a-personal-blog-with-zola/). Innovation theory was built on cases like cars, steel and salmon, and it transfers to software better than I expected.
 
 ## The site
 

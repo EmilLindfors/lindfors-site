@@ -50,7 +50,7 @@ Done!
 
 One script, and everything the site does comes out of it. Each post gets a typeset PDF, a plain-markdown copy for anyone who asks for one with an `Accept` header, a spoken script, and for some posts an MP3. Citations resolve to a formatted reference list with DOIs. The CV compiles. Then Zola renders the lot, and a push puts it on Cloudflare Pages. There is a newsletter behind it too, on a Rust Worker and a mail server I run myself, and a client-side search that never calls anyone. No JavaScript framework, no `node_modules`, no third-party service except Cloudflare.
 
-This post is the foundation of the series: why Zola, what Zola refuses to do, and how that one refusal decided the shape of everything around it. The [newsletter](/blog/self-hosted-newsletter/), the [citations](/blog/citations-on-a-static-site/), the [PDFs](/blog/typst-for-blogging/), the [images](/blog/images-on-a-static-site/) and the [audio](/blog/audio-on-a-static-site/) each have their own post.
+This post is the foundation of the series: why Zola, what Zola refuses to do, and how that one refusal decided the shape of everything around it. The [newsletter](/blog/self-hosted-newsletter/), the [citations](/blog/citations-on-a-static-site/), the [PDFs](/blog/typst-for-blogging/), the [images](/blog/images-on-a-static-site/) and the audio each have their own post.
 
 <!-- more -->
 
@@ -137,7 +137,7 @@ They wrote about firms, and this is one person and a hobby repo, so treat the tr
 - **The lock-in** is real and I can name it. The site depends on Zola's page bundles, its TOML frontmatter, Tera v2, Cloudflare's `_headers` and Pages Functions, and Stalwart's JMAP. The Tera migration was the first bill for that.
 
 <!-- emil -->
-I thought in January that I would be more dependent on Cloudflare infrastructure, but I keep building away from that, so I could probably run this site on my own server without much hassle in a while if I really wanted to. (The newsletter did exactly that in September, [in a day](/blog/newsletter-on-my-own-server/).) Cloudflare works fine now, but I do enjoy not being locked down, as I have [written about in other posts](/blog/two-defensible-answers/) as well, on the need to be able to experiment and innovate and not to be locked in, as they say in the path dependency literature.
+I thought in January that I would be more dependent on Cloudflare infrastructure, but I keep building away from that, so I could probably run this site on my own server without much hassle in a while if I really wanted to. (The newsletter did exactly that in September, [in a day](/blog/newsletter-on-my-own-server/).) Cloudflare works fine now, but I do enjoy not being locked down, as I have written about in other posts as well, on the need to be able to experiment and innovate and not to be locked in, as they say in the path dependency literature.
 
 The model makes two recommendations that I find useful here, and one point where I would push back.
 

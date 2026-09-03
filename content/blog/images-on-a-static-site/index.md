@@ -228,7 +228,7 @@ rm content/blog/my-post/*.jpg
 - **The post header.** The title and description sit on the picture, under a dark gradient, so the article starts one band sooner than it did when the picture came after the title.
 - **The front page.** Featured cards get the same treatment, the lead card with the full hero and the other two with their thumbnails.
 - **The PDF.** The hero appears on the first page.
-- **Social sharing.** Every post has a 1200x630 card at `/og/<slug>.png`. With a hero and no better card, the title is composed over the hero. How the better cards are made is [its own post](/blog/generated-illustrations/).
+- **Social sharing.** Every post has a 1200x630 card at `/og/<slug>.png`. With a hero and no better card, the title is composed over the hero. How the better cards are made is its own post.
 
 A post without `featured_image` renders exactly as before. Text only, no placeholder, no broken layout.
 
@@ -254,4 +254,4 @@ Two things did not go the way the February version of this post expected, and on
 
 ## A note on the hero image
 
-The hero on this post was originally generated with Qwen-Image-2.0, Alibaba's open model from February 2026, as a decorative anchor for a post about an abstract topic. In September it was replaced with the drawer of prints at the top of the page, drawn by a different model in the style every post now shares. It went through `img-optim` like anything else: 175 KB of JPEG to a 68 KB WebP with a 16 KB thumbnail. The same picture is now the style reference that every other hero on the site is drawn against, which is [the next post](/blog/generated-illustrations/).
+The hero on this post was originally generated with Qwen-Image-2.0, Alibaba's open model from February 2026, as a decorative anchor for a post about an abstract topic. In September it was replaced with the drawer of prints at the top of the page, drawn by a different model in the style every post now shares. It went through `img-optim` like anything else: 175 KB of JPEG to a 68 KB WebP with a 16 KB thumbnail. The same picture is now the style reference that every other hero on the site is drawn against, which is the next post.
