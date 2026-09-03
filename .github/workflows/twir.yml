@@ -1,0 +1,67 @@
+# Submit a freshly published post to This Week in Rust.
+#
+# The publisher on mail.lindfors.no commits `Publish: <title>` with a
+# `Syndicate: this-week-in-rust` trailer when the post was queued with `--twir`
+# (src/publish.rs, TWIR_TRAILER). This runs on that push, finds the post the commit
+# added, and has scripts/twir-pr.sh open the pull request against the current draft.
+# It never runs for a push without the trailer, so a revision to an old post cannot
+# resubmit it. `workflow_dispatch` covers a back-catalogue post or a retry.
+#
+# Needs the TWIR_TOKEN secret: a classic personal access token with `public_repo`,
+# which can push to the fork and open a PR on rust-lang. GITHUB_TOKEN cannot reach
+# another repository, and fine-grained tokens cannot open PRs on one you do not own.
+
+name: This Week in Rust
+
+on:
+  push:
+    branches: [main]
+    paths: ['content/blog/**']
+  workflow_dispatch:
+    inputs:
+      slug:
+        description: 'Post slug (content/blog/<slug>/)'
+        required: true
+      section:
+        description: 'Draft section to add it under'
+        default: 'Observations/Thoughts'
+      dry_run:
+        description: 'Edit a clone and print the diff; push nothing'
+        type: boolean
+        default: false
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    if: "github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, 'Syndicate: this-week-in-rust')"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Which posts
+        id: posts
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_SLUG: ${{ inputs.slug }}
+          ADDED: ${{ toJSON(github.event.head_commit.added) }}
+        run: |
+          if [ "$EVENT" = workflow_dispatch ]; then
+            slugs="$INPUT_SLUG"
+          else
+            # The publish commit adds content/blog/<slug>/index.md; nothing else does.
+            slugs=$(printf '%s' "$ADDED" | jq -r '.[] | select(test("^content/blog/[^/]+/index\\.md$")) | split("/")[2]' | tr '\n' ' ')
+          fi
+          echo "slugs=$slugs" >> "$GITHUB_OUTPUT"
+          echo "posts: ${slugs:-none}"
+
+      - name: Open the pull request
+        if: steps.posts.outputs.slugs != ''
+        env:
+          GH_TOKEN: ${{ secrets.TWIR_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run == true && '1' || '0' }}
+          SECTION: ${{ inputs.section || 'Observations/Thoughts' }}
+          SLUGS: ${{ steps.posts.outputs.slugs }}
+        run: |
+          [ -n "$GH_TOKEN" ] || { echo "The TWIR_TOKEN secret is not set." >&2; exit 1; }
+          for slug in $SLUGS; do
+            bash scripts/twir-pr.sh "$slug" "$SECTION"
+          done

@@ -63,9 +63,15 @@ external_level = "warn"
 author_email = "emil@lindfors.no"
 author_bio = "AI capability lead and senior data engineer at a data platform consultancy in Oslo, with a PhD in innovation studies. Writes about agent-powered pipelines, talking to your data, coding agents, Rust, and what innovation theory says about all of it."
 
-# Social links (optional)
+# Social links (optional). `mastodon` and `bluesky` are profile URLs and get a
+# rel="me" link in the footer and in <head>, which is what Mastodon's profile-link
+# verification looks for. `fediverse_creator` is the @user@instance handle for the
+# fediverse:creator meta tag, so a post shared on Mastodon shows the author.
 github = "https://github.com/emillindfors"
 linkedin = "https://linkedin.com/in/emil-havbruk"
+mastodon = "https://mastodon.social/@emillindfors"
+fediverse_creator = "@emillindfors@mastodon.social"
+# bluesky = "https://bsky.app/profile/<handle>"
 
 # Enable KaTeX math rendering
 katex = true

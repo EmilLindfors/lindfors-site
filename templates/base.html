@@ -39,6 +39,15 @@
     {% endif %}
     {% endblock twittercard %}
 
+    {# Fediverse. rel="me" is what Mastodon checks to verify the site link on the
+       profile; fediverse:creator makes a shared link preview carry the author. #}
+    {% if config.extra.mastodon %}
+    <link rel="me" href="{{ config.extra.mastodon }}">
+    {% endif %}
+    {% if config.extra.fediverse_creator %}
+    <meta name="fediverse:creator" content="{{ config.extra.fediverse_creator }}">
+    {% endif %}
+
     <!-- Self-hosted fonts -->
     <style>
         @font-face {
@@ -124,7 +133,10 @@
         "@type": "Person",
         "name": "{{ config.author }}",
         "url": "{{ config.base_url | safe }}/about/"{% if config.extra.github %},
-        "sameAs": ["{{ config.extra.github }}"{% if config.extra.linkedin %}, "{{ config.extra.linkedin }}"{% endif %}]{% endif %}
+        "sameAs": ["{{ config.extra.github }}"
+            {%- if config.extra.linkedin %}, "{{ config.extra.linkedin }}"{% endif %}
+            {%- if config.extra.mastodon %}, "{{ config.extra.mastodon }}"{% endif %}
+            {%- if config.extra.bluesky %}, "{{ config.extra.bluesky }}"{% endif %}]{% endif %}
     }]
     </script>
     {% endblock jsonld %}
@@ -172,6 +184,12 @@
                     <a href="{{ get_url(path='atom.xml') }}">RSS</a>
                     {% if config.extra.github %}
                     <a href="{{ config.extra.github }}" rel="noopener noreferrer" target="_blank">GitHub</a>
+                    {% endif %}
+                    {% if config.extra.mastodon %}
+                    <a href="{{ config.extra.mastodon }}" rel="me noopener noreferrer" target="_blank">Mastodon</a>
+                    {% endif %}
+                    {% if config.extra.bluesky %}
+                    <a href="{{ config.extra.bluesky }}" rel="me noopener noreferrer" target="_blank">Bluesky</a>
                     {% endif %}
                     {% if config.extra.rum.enabled | default(value=false) %}
                     <a href="#" data-consent-open>Analytics</a>
