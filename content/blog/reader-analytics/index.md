@@ -12,6 +12,9 @@ series = ["The infrastructure behind this blog"]
 toc = true
 skip_audio = true
 featured_image = "hero.webp"
+changelog = [
+    { date = 2026-09-03, description = "Newsletter links now carry the per-issue parameter described under What comes next, and the queries file has the query that reads it." },
+]
 
 [extra.bib]
 Stilgoe2013 = "10.1016/j.respol.2013.05.008"

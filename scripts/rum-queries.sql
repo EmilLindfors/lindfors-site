@@ -11,9 +11,12 @@
 -- The SDK's automatic click actions never fire for a link that navigates (the page
 -- is gone before the action settles), so link clicks are recorded by rum.js as a
 -- custom action named `link` with `href`, `internal` and `text` in its context.
--- Check the exact context column names once in Logs (they flatten with
--- underscores; expect context_href or action_context_href) and fix the last two
--- queries if they differ.
+-- The context flattens to context_href, context_internal and context_text
+-- (confirmed against live rows on 2026-09-03).
+--
+-- Newsletter issues carry `?issue=<slug>` on every link into the site
+-- (`site-tools newsletter gen`), so a visit from an issue is a view whose
+-- view_url has that parameter. Per issue, never per reader: see query 6.
 
 -- 1. Pages visited per session, in order. The "links visited" list.
 SELECT
@@ -74,3 +77,16 @@ WHERE type = 'action'
 GROUP BY view_url, context_href
 ORDER BY clicks DESC
 LIMIT 100;
+
+-- 6. Visits that came from a newsletter issue, per issue and per page. The
+--    parameter is the same for every recipient, so this is how many readers an
+--    issue brought to the site and where they went, and nothing about who.
+SELECT
+  regexp_replace(view_url, '^.*[?&]issue=([^&#]+).*$', '\\1') AS issue,
+  regexp_replace(view_url, '\\?.*$', '') AS page,
+  count(distinct view_id) AS views,
+  count(distinct session_id) AS sessions
+FROM "_rumdata"
+WHERE type = 'view' AND view_url LIKE '%issue=%'
+GROUP BY issue, page
+ORDER BY issue, views DESC;

@@ -2,7 +2,7 @@
 title: "Citations by DOI, and the warning I read past for a month"
 date: "2026-08-28"
 description: "A reference manager moved its database, a build script swallowed the error, and every build for a month reported success. Rebuilding the pipeline around DOIs and crossref, and why Zotero stays as the other half."
-url: "https://lindfors.no/blog/citations-without-zotero/"
+url: "https://lindfors.no/blog/citations-without-zotero/?issue=citations-without-zotero"
 ---
 
 
@@ -43,7 +43,7 @@ So the fix is smaller than the problem looked. `site-tools` reads `zotero.sqlite
 
 ## The Zotero dependency
 
-[Part one](/blog/citations-on-a-static-site/) describes a pipeline that reads citation keys out of Zotero's SQLite database at build time. I still think that design is right for what it is. But look at what it needs: a desktop application, installed on a particular machine, with a particular plugin, keeping a database at a particular path, in a schema neither of us controls.
+[Part one](https://lindfors.no/blog/citations-on-a-static-site/?issue=citations-without-zotero) describes a pipeline that reads citation keys out of Zotero's SQLite database at build time. I still think that design is right for what it is. But look at what it needs: a desktop application, installed on a particular machine, with a particular plugin, keeping a database at a particular path, in a schema neither of us controls.
 
 For a static site whose whole premise is text files in a git repo, that is a strange thing to require. I can rebuild this site from a clone on any machine. Except the citations, which only work on the laptop with Zotero on it.
 
@@ -141,7 +141,7 @@ So the mask came first. Fenced blocks, inline code spans and the TOML frontmatte
 
 Whether crossref's coverage is enough. Everything I've cited on this blog so far has a DOI, which is not a coincidence, because I cite journal articles here and leave the reports in a drawer. The first time I want to cite a Directorate of Fisheries statistics release I'll find out how much of the old path I still need.
 
-The reference formatting is still hardcoded in Tera components. That was on the "what I'd change" list in part one, and it still is. Crossref will render a citation in any of about 2,900 CSL styles server-side, and `transform(doi, CnFormat::bibliography("apa"))` is the whole call, so switching between APA and IEEE went from a formatting engine to a one-line lookup. I haven't wired it up.
+The reference formatting is still hardcoded in Tera components. That was on the "what I'd change" list in part one, and it still is. Crossref will render a citation in any of about 2,900 CSL styles server-side, and `transform(doi, CnFormat::bibliography("apa"))` is the whole call, so switching between APA and IEEE went from a formatting engine to a one-line lookup. That lookup is `site-tools cite format <doi> --style ieee` now, and it prints a formatted reference in about a second. The list on the page still comes from the structured fields, because crossref cannot format a reference that only Zotero knows about, and a list assembled by two formatters would show the seam.
 
 And the two sources disagree in small ways I haven't decided about. Crossref gives Christiansen and Jakobsen no issue number at all; Zotero has `October 2016` sitting in the issue field for the same paper. Neither is wrong, and both come from whatever the publisher deposited. But a post citing one source through crossref and another through Zotero ends up with a reference list assembled to two slightly different sets of rules, and I don't know yet whether that will bother me enough to normalise it.
 
@@ -153,4 +153,4 @@ If you want to try this on your own site, the client is [on GitHub](https://gith
 
 ---
 
-*[Read the full post on the site](https://lindfors.no/blog/citations-without-zotero/) for math equations, citations, and interactive features.*
+*[Read the full post on the site](https://lindfors.no/blog/citations-without-zotero/?issue=citations-without-zotero) for math equations, citations, and interactive features.*
