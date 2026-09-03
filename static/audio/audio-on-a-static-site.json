@@ -1,10 +1,10 @@
 {
   "slug": "audio-on-a-static-site",
-  "script_hash": "37f53016997b2b3f",
+  "script_hash": "b1268607d9082129",
   "model": "s2.1-pro-free",
   "voice": "c4e31cfba9a749949ce639b349e92b01",
-  "duration_seconds": 745,
-  "duration": "12:25",
-  "bytes": 5961260,
+  "duration_seconds": 746,
+  "duration": "12:26",
+  "bytes": 5969516,
   "blocks": 59
 }

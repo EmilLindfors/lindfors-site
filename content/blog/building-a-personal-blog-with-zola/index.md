@@ -12,6 +12,7 @@ featured = true
 toc = true
 featured_image = "hero.webp"
 changelog = [
+    { date = 2026-09-04, description = "The newsletter API and the subscriber dashboard are one service on the mail server since 2026-09-03; the repo tree, the tooling table and the components table say so. The prediction near the end about running the site on my own server came true faster than expected." },
     { date = 2026-09-02, description = "Brought up to date: the markdown copies and content negotiation, the audio pipeline, the CSP, the docker fallback on Windows, the admin dashboard and the Tera v2 migration. New title. Adds the path-dependence reading (Sydow, Schreyögg & Koch 2009) and a fourth thing I would do differently." },
     { date = 2026-08-11, description = "Updated for Zola 0.23 and the move from shell scripts to the site-tools Rust CLI." },
 ]
@@ -97,7 +98,7 @@ In February that pre-processing was a handful of shell scripts. Since August it 
 | `audio all` | `static/audio/<slug>.mp3` | ffmpeg and a TTS endpoint |
 | `cv build` | `static/cv.pdf` | typst and the font sources |
 | `pdf all` | `static/pdf/<slug>.pdf` | typst and the font sources |
-| `newsletter gen` / `send` | `static/newsletter/<slug>.md`, then a POST to the Worker | the admin key |
+| `newsletter gen` / `send` | `static/newsletter/<slug>.md`, then a POST to the newsletter service on the mail server | the admin key |
 
 Three modules are shared by all of them, and they are why each new subcommand was cheaper than the one before:
 
@@ -136,7 +137,7 @@ They wrote about firms, and this is one person and a hobby repo, so treat the tr
 - **The lock-in** is real and I can name it. The site depends on Zola's page bundles, its TOML frontmatter, Tera v2, Cloudflare's `_headers` and Pages Functions, and Stalwart's JMAP. The Tera migration was the first bill for that.
 
 <!-- emil -->
-I thought in January that I would be more dependent on Cloudflare infrastructure, but I keep building away from that, so I could probably run this site on my own server without much hassle in a while if I really wanted to. Cloudflare works fine now, but I do enjoy not being locked down, as I have [written about in other posts](/blog/two-defensible-answers/) as well, on the need to be able to experiment and innovate and not to be locked in, as they say in the path dependency literature.
+I thought in January that I would be more dependent on Cloudflare infrastructure, but I keep building away from that, so I could probably run this site on my own server without much hassle in a while if I really wanted to. (The newsletter did exactly that in September, [in a day](/blog/newsletter-on-my-own-server/).) Cloudflare works fine now, but I do enjoy not being locked down, as I have [written about in other posts](/blog/two-defensible-answers/) as well, on the need to be able to experiment and innovate and not to be locked in, as they say in the path dependency literature.
 
 The model makes two recommendations that I find useful here, and one point where I would push back.
 
@@ -161,8 +162,7 @@ lindfors-site/
 │   ├── llms.txt                   # generated
 │   └── _headers                   # security headers and the CSP
 ├── functions/blog/_middleware.js  # Pages Function: Accept: text/markdown -> the .md
-├── api/src/lib.rs                 # Rust Cloudflare Worker, the newsletter API
-├── admin/                         # axum service: subscriber dashboard, private host
+├── newsletter/                    # axum service on the mail server: subscribe, send, dashboard
 ├── tools/site-tools/              # the Rust CLI
 ├── tools/img-optim/               # image conversion to WebP, run by hand
 ├── scripts/lib.sh                 # run_zola, the preflights, the docker fallback
@@ -172,7 +172,7 @@ lindfors-site/
 └── zola.toml
 ```
 
-The blog, the templates, the styles, the Worker, the admin service, the CLI, the build script and the CV source are one repo. Everything except the admin dashboard deploys from a push.
+The blog, the templates, the styles, the newsletter service, the CLI, the build script and the CV source are one repo. Everything except the newsletter service deploys from a push; that one is a binary copied to the mail server.
 
 ## Typography
 
@@ -257,7 +257,6 @@ Two preflights run before any of it:
 | Component | Monthly |
 |---|---|
 | Cloudflare Pages | $0 |
-| Cloudflare Worker | $0 |
 | Mail server, its share of a VPS I already run | ~$6-7 |
 | Domain | ~$0.83 |
 
@@ -282,9 +281,8 @@ The $5 VPS has increased slightly, to 6 or 7 dollars, but it's still fine for a 
 |---|---|
 | Static site generator | [Zola](https://www.getzola.org/) 0.23 |
 | Hosting | Cloudflare Pages, plus one Pages Function for content negotiation |
-| Newsletter API | Rust Cloudflare Worker ([workers-rs](https://github.com/cloudflare/workers-rs)) |
-| Mail server | [Stalwart](https://stalw.art/), over JMAP |
-| Subscriber dashboard | axum, on a private host |
+| Newsletter | one axum service on the mail server, Postgres behind it ([the move](/blog/newsletter-on-my-own-server/)) |
+| Mail server | [Stalwart](https://stalw.art/), over JMAP on loopback |
 | Everything generated | `site-tools` (Rust) |
 | PDFs | [Typst](https://typst.app/), via cmarker and MiTeX |
 | Audio | Fish Audio, through `site-tools audio` |

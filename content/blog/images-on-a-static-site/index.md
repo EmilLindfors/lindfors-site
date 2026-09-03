@@ -34,7 +34,7 @@ There are three reasonable places to put images on a static site deployed to Clo
 
 ## Why git
 
-Everything on this site is one repo. The fonts are self-hosted, the newsletter Worker is checked in beside the templates, and the PDF pipeline reads the same markdown. A second deployment target for images would have been the first thing that lived somewhere else.
+Everything on this site is one repo. The fonts are self-hosted, the newsletter service is checked in beside the templates, and the PDF pipeline reads the same markdown. A second deployment target for images would have been the first thing that lived somewhere else.
 
 The practical question is whether git can carry it. For a blog, easily.
 

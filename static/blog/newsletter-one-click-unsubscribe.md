@@ -107,7 +107,7 @@ Unsubscribe tokens never expire, unlike the 48-hour confirmation ones. A confirm
 
 Fan-out was cheaper and simpler. What per-recipient sending bought: working one-click, a footer link that does not make the reader type their own address into a form, and per-recipient personalisation if I ever want it. What it cost:
 
-- **A hard ceiling.** Every message is a subrequest, and Workers caps those per invocation at 50 on the free plan, one of which is already spent fetching the markdown. Sends above 45 recipients are refused, not truncated. Mailing the first 45 of a longer list and reporting success is the worst available outcome. If your list is bigger than that, you need batching or a queue.
+- **A hard ceiling** (until September 2026, when the send moved onto the mail server and the ceiling went with the Worker). Every message is a subrequest, and Workers caps those per invocation at 50 on the free plan, one of which is already spent fetching the markdown. Sends above 45 recipients are refused, not truncated. Mailing the first 45 of a longer list and reporting success is the worst available outcome. If your list is bigger than that, you need batching or a queue.
 - **A send that can half-succeed.** The endpoint returns `{"sent": N, "failed": [...]}` and answers 502 if any recipient failed, so a partial send needs a human instead of reading as success.
 - **Idempotency got harder.** Under fan-out a retry double-sent to everyone. That is obviously wrong, so it was obviously avoided. Now a retry after a partial failure double-sends only to the recipients who already succeeded. That is subtler and much easier to do by accident. A real sent-marker is still not built.
 
@@ -161,7 +161,7 @@ Two operational facts about 0.16 you do not want to rediscover. The config lives
 
 Something like a day of work, on a system with no real subscribers to break. That was the point of doing it now.
 
-The WAF rule is the highest-value thing left, because the Workers binding only stops bursts and `/api/subscribe` sends mail on demand. After that: sent-markers so a retry cannot double-send, a staging list, splitting the admin key into a send-only token, and `List-Id`. `List-Id` is correct on its own merits, but it will not flip the Gmail control and might move the newsletter from Primary to Promotions.
+*This list is what was left in May. Sent-markers arrived in August as a WebDAV precondition and became a primary key in September, when the whole thing [moved onto the mail server](https://lindfors.no/blog/newsletter-on-my-own-server/); the rate limit is nginx plus the process now, and the staging list never happened.* The WAF rule is the highest-value thing left, because the Workers binding only stops bursts and `/api/subscribe` sends mail on demand. After that: sent-markers so a retry cannot double-send, a staging list, splitting the admin key into a send-only token, and `List-Id`. `List-Id` is correct on its own merits, but it will not flip the Gmail control and might move the newsletter from Primary to Promotions.
 
 Then I will invite a few friends and see what breaks. All of the above was verified against a list of one, and a list of one is not the same as knowing it works.
 
@@ -173,4 +173,4 @@ If you are running a small list through your own mail server, the checklist from
 4. Set the system hostname, so `Message-ID` is not `@localhost`.
 5. Do not chase the Ed25519 `neutral`.
 
-The Worker is [on GitHub](https://github.com/emillindfors/lindfors-site) if you want to read it.
+The Worker is gone; its successor is [on GitHub](https://github.com/emillindfors/lindfors-site) under `newsletter/`, and the per-reader URL and the DKIM tag are still exactly as described here. [The move](https://lindfors.no/blog/newsletter-on-my-own-server/) has its own post.

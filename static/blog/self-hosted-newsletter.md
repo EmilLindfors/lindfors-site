@@ -1,6 +1,6 @@
 ---
 title: "Self-hosting email is not that hard anymore"
-description: "This blog's newsletter runs on a Rust Cloudflare Worker and my own Stalwart mail server, with no database and nothing paid for. What the system looks like after a year of fixes, the DNS records that keep it out of the junk folder, what Hacker News gets wrong about running your own mail, and why a newsletter is a pipeline in the knowledge-diffusion sense."
+description: "This blog's newsletter ran on a Rust Cloudflare Worker and my own Stalwart mail server, with no database and nothing paid for, until September 2026, when it moved onto the mail server itself. What the system looked like after a year of fixes, the DNS records that keep it out of the junk folder, what Hacker News gets wrong about running your own mail, and why a newsletter is a pipeline in the knowledge-diffusion sense."
 date: 2026-02-18
 tags: ["rust", "self-hosting", "email", "cloudflare", "innovation"]
 author: "Emil Lindfors"
@@ -17,7 +17,7 @@ Type your address into the box at the bottom of this page and here is what happe
 4. When I publish something, one message is written for you alone, with an unsubscribe link that knows who you are, and sent through that same server.
 5. If your mail client offers a native unsubscribe button, it posts to the Worker, which removes you. The link in the footer shows a button that does the same.
 
-No database, no newsletter platform, no third party holding the list. The mail server is a $6 VPS that also does my personal email. This is the February 2026 system after a year of fixes, and this post is what it looks like now, what it needs on the DNS side to stay out of junk folders, and why I bothered.
+No database, no newsletter platform, no third party holding the list. The mail server is a $6 VPS that also does my personal email. This is the February 2026 system after a year of fixes, and it is not the system any more: on 3 September 2026 I retired the Worker and moved the whole newsletter onto the mail server with a Postgres behind it, in one day. [That move has its own post](https://lindfors.no/blog/newsletter-on-my-own-server/), and the rest of this one describes the system as it stood, because the mail-server half is unchanged and the reasons for the Worker half still explain the shape it took. This post is what it looks like now, what it needs on the DNS side to stay out of junk folders, and why I bothered.
 
 
 ## Why a newsletter
@@ -90,7 +90,7 @@ for email in &recipients {
 Each message carries `List-Unsubscribe` with a signed per-reader URL, `List-Unsubscribe-Post: List-Unsubscribe=One-Click`, and the same URL in the footer. Three things around that loop are worth copying:
 
 - **The slug is claimed before anyone is mailed.** A `PUT` with `If-None-Match: *` to `<send-log>/<slug>.json`. Stalwart answers 412 if the file exists, so a second send of the same issue is refused with a 409 before a single message goes out. If the log server cannot be reached, the send fails. It fails closed on purpose: mailing everyone twice is worse than mailing nobody.
-- **Above 45 recipients the send is refused, not truncated.** Every message is a subrequest and Workers caps those at 50 per invocation on the free plan. Mailing the first 45 and reporting success is the worst available outcome, so past that it needs batching, and I have not needed it.
+- **Above 45 recipients the send is refused, not truncated.** (Gone with the Worker; the service on the box has no such cap.) Every message is a subrequest and Workers caps those at 50 per invocation on the free plan. Mailing the first 45 and reporting success is the worst available outcome, so past that it needs batching, and I have not needed it.
 - **A partial send says so.** `{"sent": N, "failed": [...]}` with a 502, so a human looks at it.
 
 The workflow from my side is two commands. `site-tools newsletter gen <post>` writes the issue as markdown with a small YAML header into `static/newsletter/`, the site deploys, and `site-tools newsletter send <slug>` calls the Worker with a bearer token. The Worker fetches the markdown from the live site, renders it with `pulldown-cmark`, and wraps it in a hardcoded HTML template with inline styles, because email clients. It renders fine in Gmail, Apple Mail and Outlook.
@@ -134,7 +134,7 @@ Three concessions, because the objection is not all wrong:
 
 - **Volume gates are real.** Gmail shows its native unsubscribe button only to bulk senders, roughly 5,000 messages a day to its addresses, so one-click is implemented and signed here and I will never see it work on my own mail.
 - **The list is short.** A handful of readers is not a stress test of reputation. I will know more after a year of issues.
-- **Rate limiting is still not finished.** The Workers bindings stop bursts and nothing slower, and the WAF rule that would stop a patient attacker is still on the list.
+- **Rate limiting is still not finished.** The Workers bindings stop bursts and nothing slower, and the WAF rule that would stop a patient attacker is still on the list. (Since the move: nginx in front and a limiter in the process, keyed on the address and on the typed email.)
 
 <!-- emil -->
 I know how to set it up for a company now, in case anyone needs self-hosted email and wants to get off Microsoft or Google.
@@ -162,7 +162,7 @@ Mailchimp is $13 a month for 500 subscribers, ConvertKit is $29, Substack takes 
 
 ## Workers-rs tips
 
-Three things that cost me time, all still true on `worker` 0.8:
+The Worker is gone from this site, but these cost me time and are still true on `worker` 0.8 if you run one:
 
 - **Register GET before POST for the same path.** The unsubscribe page and the unsubscribe handler share `/api/unsubscribe`, and registration order decided which one matched.
 - **`Headers` methods take `&self`.** You do not need `let mut headers`.
@@ -180,7 +180,7 @@ Three things that cost me time, all still true on `worker` 0.8:
 
 **Measure your rate limiter.** I sent 18 sequential requests through a 15-per-minute limit and got zero 429s. The description said otherwise.
 
-The Worker is [on GitHub](https://github.com/emillindfors/lindfors-site), and the box at the bottom of this page is the live system. If your company wants off Microsoft or Google and needs someone who has done it, write to me.
+The service that replaced the Worker is [on GitHub](https://github.com/emillindfors/lindfors-site) under `newsletter/`, [the move is written up](https://lindfors.no/blog/newsletter-on-my-own-server/), and the box at the bottom of this page is the live system. If your company wants off Microsoft or Google and needs someone who has done it, write to me.
 
 ## References
 
