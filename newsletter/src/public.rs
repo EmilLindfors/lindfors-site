@@ -525,18 +525,68 @@ pub async fn send_newsletter(State(app): State<Arc<App>>, headers: HeaderMap, bo
     if !validate::is_valid_slug(&request.slug) {
         return api_error(400, "Invalid slug — only lowercase letters, digits, and hyphens allowed");
     }
-    let slug = request.slug;
+    let catch_up = request.mode.as_deref() == Some("catch-up");
 
+    match send_issue(&app, &request.slug, request.subject, catch_up).await {
+        Ok(outcome) => {
+            let all_ok = outcome.failed.is_empty();
+            json(
+                if all_ok { 200 } else { 502 },
+                &SendResponse {
+                    success: all_ok,
+                    sent: outcome.sent,
+                    skipped: outcome.skipped,
+                    failed: outcome.failed,
+                    error: if all_ok { None } else { Some("Some recipients could not be reached; see `failed`.".into()) },
+                },
+            )
+        }
+        Err(refused) if refused.report => send_failure(refused.status, refused.message),
+        Err(refused) => api_error(refused.status, &refused.message),
+    }
+}
+
+/// What a send did: every recipient is one of these three.
+pub struct SendOutcome {
+    pub sent: usize,
+    /// Subscribers a catch-up left alone because they already had the issue.
+    pub skipped: usize,
+    pub failed: Vec<String>,
+}
+
+/// Why a send did not start, with the status the HTTP face reports it as. `report`
+/// says whether that face answers with the send report shape or the plain API error;
+/// the CLI prints the message either way.
+pub struct SendRefused {
+    pub status: u16,
+    pub message: String,
+    report: bool,
+}
+
+impl SendRefused {
+    fn api(status: u16, message: String) -> SendRefused {
+        SendRefused { status, message, report: false }
+    }
+    fn report(status: u16, message: String) -> SendRefused {
+        SendRefused { status, message, report: true }
+    }
+}
+
+/// Send one issue to the list. The HTTP route above and the `send` operator command
+/// in `main.rs` both come here, so the publisher on this box mails an issue over
+/// loopback with no key in the request, and the workstation's `site-tools newsletter
+/// send` still works through `ADMIN_KEY` for a send by hand.
+pub async fn send_issue(app: &App, slug: &str, subject: Option<String>, catch_up: bool) -> Result<SendOutcome, SendRefused> {
     // The issue body comes from the site, through the loopback front for it, so the
     // published file is the one true copy and a draft never goes out by accident.
     let url = format!("{}/newsletter/{slug}.md", app.config.site_internal_url.trim_end_matches('/'));
     let md_source = match app.client.get(&url).send().await {
         Ok(r) if r.status().is_success() => r.text().await.unwrap_or_default(),
-        Ok(r) => return api_error(404, &format!("Newsletter not found at {url} (status {})", r.status().as_u16())),
-        Err(e) => return api_error(502, &format!("Could not fetch {url}: {e}")),
+        Ok(r) => return Err(SendRefused::api(404, format!("Newsletter not found at {url} (status {})", r.status().as_u16()))),
+        Err(e) => return Err(SendRefused::api(502, format!("Could not fetch {url}: {e}"))),
     };
     let (meta, md_body) = parse_frontmatter(&md_source);
-    let title = meta.get("title").cloned().unwrap_or_else(|| slug.clone());
+    let title = meta.get("title").cloned().unwrap_or_else(|| slug.to_string());
     let description = meta.get("description").cloned().unwrap_or_default();
     let date = meta.get("date").cloned().unwrap_or_default();
     let post_url = meta
@@ -544,43 +594,42 @@ pub async fn send_newsletter(State(app): State<Arc<App>>, headers: HeaderMap, bo
         .cloned()
         .unwrap_or_else(|| format!("{}/blog/{slug}/", app.config.site_url));
     let rendered_body = render_markdown(md_body);
-    let subject = request.subject.unwrap_or_else(|| title.clone());
+    let subject = subject.unwrap_or_else(|| title.clone());
 
     let recipients = match app.db.subscribers().await {
         Ok(r) => r,
-        Err(e) => return api_error(503, &format!("Could not read the list: {e}")),
+        Err(e) => return Err(SendRefused::api(503, format!("Could not read the list: {e}"))),
     };
-    let catch_up = request.mode.as_deref() == Some("catch-up");
 
     // A full send claims the slug before a single message goes out: the primary key is
     // the lock, and a send whose response was lost, followed by a retry, meets it
     // here. A catch-up of an issue that has gone out skips the claim and the delivery
     // table decides who is left; a catch-up of one that never went out is a full send.
-    let already_sent = match app.db.send_exists(&slug).await {
+    let already_sent = match app.db.send_exists(slug).await {
         Ok(b) => b,
-        Err(e) => return send_failure(503, format!("Send log unavailable, refusing to send unguarded: {e}")),
+        Err(e) => return Err(SendRefused::report(503, format!("Send log unavailable, refusing to send unguarded: {e}"))),
     };
     let topping_up = catch_up && already_sent;
     if !topping_up {
-        match app.db.claim_send(&slug, recipients.len() as i32).await {
+        match app.db.claim_send(slug, recipients.len() as i32).await {
             Ok(Claim::Won) => {}
             Ok(Claim::AlreadySent) => {
                 println!("refusing to send {slug}: already claimed");
-                return send_failure(409, format!(
+                return Err(SendRefused::report(409, format!(
                     "{slug} has already been sent. Use --catch-up to reach only those who have not had it, \
                      or delete its row in `sends` to send it to everyone again."
-                ));
+                )));
             }
             Err(e) => {
                 eprintln!("refusing to send {slug}: claim unavailable: {e}");
-                return send_failure(503, format!("Send log unavailable, refusing to send unguarded: {e}"));
+                return Err(SendRefused::report(503, format!("Send log unavailable, refusing to send unguarded: {e}")));
             }
         }
     }
     let delivered = if topping_up {
-        match app.db.delivered_subjects(&slug).await {
+        match app.db.delivered_subjects(slug).await {
             Ok(d) => d,
-            Err(e) => return send_failure(503, format!("Could not read deliveries: {e}")),
+            Err(e) => return Err(SendRefused::report(503, format!("Could not read deliveries: {e}"))),
         }
     } else {
         Default::default()
@@ -616,7 +665,7 @@ pub async fn send_newsletter(State(app): State<Arc<App>>, headers: HeaderMap, bo
                 "failed"
             }
         };
-        if let Err(e) = app.db.record_delivery(&slug, email, status).await {
+        if let Err(e) = app.db.record_delivery(slug, email, status).await {
             eprintln!("could not record the delivery of {slug}: {e}");
         }
     }
@@ -624,24 +673,15 @@ pub async fn send_newsletter(State(app): State<Arc<App>>, headers: HeaderMap, bo
 
     let all_ok = failed.is_empty();
     let recorded = if topping_up {
-        app.db.record_catch_up(&slug, sent as i32, &failed).await
+        app.db.record_catch_up(slug, sent as i32, &failed).await
     } else {
-        app.db.record_send(&slug, sent as i32, &failed, all_ok).await
+        app.db.record_send(slug, sent as i32, &failed, all_ok).await
     };
     if let Err(e) = recorded {
         eprintln!("could not record the send of {slug}: {e}");
     }
 
-    json(
-        if all_ok { 200 } else { 502 },
-        &SendResponse {
-            success: all_ok,
-            sent,
-            skipped,
-            failed,
-            error: if all_ok { None } else { Some("Some recipients could not be reached; see `failed`.".into()) },
-        },
-    )
+    Ok(SendOutcome { sent, skipped, failed })
 }
 
 // ---------------------------------------------------------------------------

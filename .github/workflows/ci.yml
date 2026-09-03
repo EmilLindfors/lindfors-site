@@ -54,6 +54,13 @@ jobs:
         working-directory: tools/site-tools
         run: cargo test
 
+      # The publisher on mail.lindfors.no is this crate without `cite`, the one feature
+      # that pulls in C. Built here so a dependency added to the wrong side of the
+      # feature line fails in CI and not on the box's next cross-compile.
+      - name: Check the publisher build (no default features)
+        working-directory: tools/site-tools
+        run: cargo build --no-default-features
+
       # img-optim is run by hand when an image is added to a post, so nothing in a
       # build calls it. Without this it is the one crate here that can stop compiling
       # without anyone noticing until the next time an image needs converting.

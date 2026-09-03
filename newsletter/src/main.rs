@@ -85,6 +85,18 @@ pub struct App {
     pub provider: oidc::Provider,
 }
 
+/// Everything a request handler, or the `send` command, reaches through.
+fn build_app(config: Config, db: db::Db) -> Arc<App> {
+    let provider = oidc::Provider::new(config.issuer.clone(), config.internal_issuer.clone());
+    Arc::new(App {
+        config,
+        client: reqwest::Client::new(),
+        db,
+        limiter: ratelimit::Limiter::new(60),
+        provider,
+    })
+}
+
 /// Read a required variable, or name the one that is missing. Every one of these is
 /// fatal at startup rather than at the first request.
 fn required(name: &str) -> Result<String, String> {
@@ -376,8 +388,56 @@ async fn main() {
             }
             return;
         }
+        // The send the publisher on this box makes over loopback, with no key in play:
+        // `site-tools publish` calls this through the `send-issue` wrapper, which sources
+        // the environment file as root. The HTTP route stays for a send by hand.
+        Some("send") => {
+            let Some(slug) = args.get(1) else {
+                eprintln!("usage: lindfors-newsletter send <slug> [--subject <text>] [--catch-up]");
+                std::process::exit(2);
+            };
+            if !validate::is_valid_slug(slug) {
+                eprintln!("lindfors-newsletter send: {slug:?} is not a slug");
+                std::process::exit(2);
+            }
+            let mut subject = None;
+            let mut catch_up = false;
+            let mut i = 2;
+            while i < args.len() {
+                match args[i].as_str() {
+                    "--subject" => {
+                        subject = args.get(i + 1).cloned();
+                        i += 1;
+                    }
+                    "--catch-up" => catch_up = true,
+                    other => {
+                        eprintln!("lindfors-newsletter send: unknown option {other}");
+                        std::process::exit(2);
+                    }
+                }
+                i += 1;
+            }
+            let app = build_app(config, db);
+            match public::send_issue(&app, slug, subject, catch_up).await {
+                Ok(outcome) => {
+                    println!("{slug}: {} sent, {} skipped, {} failed", outcome.sent, outcome.skipped, outcome.failed.len());
+                    if !outcome.failed.is_empty() {
+                        for address in &outcome.failed {
+                            eprintln!("  failed: {address}");
+                        }
+                        eprintln!("partial send; `send {slug} --catch-up` retries the addresses without a delivery");
+                        std::process::exit(1);
+                    }
+                }
+                Err(refused) => {
+                    eprintln!("lindfors-newsletter send: {} ({})", refused.message, refused.status);
+                    std::process::exit(1);
+                }
+            }
+            return;
+        }
         Some(other) => {
-            eprintln!("lindfors-newsletter: unknown command {other}; commands: migrate, assume-delivered");
+            eprintln!("lindfors-newsletter: unknown command {other}; commands: migrate, assume-delivered, send");
             std::process::exit(2);
         }
         None => {}
@@ -399,14 +459,7 @@ async fn main() {
         }
     };
 
-    let provider = oidc::Provider::new(config.issuer.clone(), config.internal_issuer.clone());
-    let app = Arc::new(App {
-        config,
-        client: reqwest::Client::new(),
-        db,
-        limiter: ratelimit::Limiter::new(60),
-        provider,
-    });
+    let app = build_app(config, db);
 
     let router = Router::new()
         // Public, routed from newsletter.lindfors.no.

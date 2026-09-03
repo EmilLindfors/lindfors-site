@@ -155,12 +155,22 @@ secret containing a space or a semicolon executes half of itself otherwise.
 `depend()` needs `postgresql`, and `db.check()` proves the connection and the four
 tables at startup, so a missing schema is a refusal to boot with the reason.
 
-Two operator commands run the binary with the same environment sourced and exit:
+Three operator commands run the binary with the same environment sourced and exit:
 
 ```bash
 sudo sh -c '. /etc/lindfors-newsletter.env; export $(grep -o "^[A-Z0-9_]*" /etc/lindfors-newsletter.env | tr "
 " " ");   /opt/lindfors-newsletter/lindfors-newsletter migrate'                       # schema.sql, then seal any plaintext rows
 sudo sh -c '...; /opt/lindfors-newsletter/lindfors-newsletter assume-delivered <slug> [email]'   # mark an old issue as delivered
+sudo /opt/lindfors-newsletter/send-issue <slug> [--subject <text>] [--catch-up]                 # send one issue, no ADMIN_KEY
+```
+
+`send` is the same send the HTTP route makes, without the key: `send-issue` is a
+root-owned wrapper (this directory, installed to `/opt/lindfors-newsletter/`) that
+sources the environment file and calls it. It exists for `site-tools publish`, which
+runs on this box as the `publisher` account and mails an issue after pushing its post;
+`/etc/sudoers.d/lindfors-publisher` allows that account exactly this command
+(`tools/site-tools/host/README.md` has the install). A partial send exits 1 and names
+the addresses; `--catch-up` retries those without a delivery row.
 
 ### The Stalwart side
 

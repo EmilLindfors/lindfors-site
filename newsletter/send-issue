@@ -1,0 +1,34 @@
+#!/bin/sh
+# Send one newsletter issue from this box, with the service's own environment.
+#
+# Installed root-owned at /opt/lindfors-newsletter/send-issue, and the one command the
+# `publisher` account may run as root (/etc/sudoers.d/lindfors-publisher). That is how
+# `site-tools publish` mails an issue after a push without ADMIN_KEY or any other
+# credential of its own: the environment file stays root-only, the publisher never
+# reads it, and the slug is the only input, checked by the binary before anything else.
+#
+#   sudo /opt/lindfors-newsletter/send-issue <slug> [--subject <text>] [--catch-up]
+#
+# The same sequence the openrc script uses: `set -a` exports every assignment in the
+# file, and values there are single-quoted because this is a shell reading them.
+
+set -e
+
+env_file=/etc/lindfors-newsletter.env
+bin=/opt/lindfors-newsletter/lindfors-newsletter
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "send-issue: must run as root (sudo); $env_file is root-only" >&2
+    exit 1
+fi
+if [ ! -f "$env_file" ]; then
+    echo "send-issue: $env_file is missing" >&2
+    exit 1
+fi
+
+set -a
+# shellcheck disable=SC1090
+. "$env_file"
+set +a
+
+exec "$bin" send "$@"

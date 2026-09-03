@@ -1,0 +1,36 @@
+#!/bin/sh
+# Refuse to commit a draft post, or a scheduling sidecar, into a public repo.
+#
+# The repo is public, so a post that is not out yet cannot be in it at all: `draft = true`
+# keeps Zola from rendering it and does nothing about GitHub. Posts written ahead go to
+# the queue on the box (`site-tools schedule <slug>`), and `draft = true` means one thing
+# only, "on my machine, not finished". This is also what makes deploy.sh's `git add -A`
+# safe again.
+#
+# Install once per clone:  git config core.hooksPath scripts/hooks
+# Bypass, knowingly:       git commit --no-verify
+
+status=0
+
+# Staged content, not the working tree: a draft flipped to published in the index
+# passes even if the file on disk still says draft.
+for path in $(git diff --cached --name-only --diff-filter=AM -- 'content/blog/*/index.md' 'content/blog/*.md'); do
+    # The frontmatter's top-level table only: everything after the first [table] header
+    # is dropped, so an [extra] key that happens to be called draft does not count.
+    if git show ":$path" | sed -n '1,/^+++$/p' | sed '1d' | sed '/^[[:space:]]*\[/,$d' | grep -Eq '^[[:space:]]*draft[[:space:]]*=[[:space:]]*true'; then
+        slug=${path#content/blog/}; slug=${slug%/index.md}; slug=${slug%.md}
+        echo "pre-commit: $path is a draft (draft = true) and the repo is public." >&2
+        echo "            Queue it with: site-tools schedule $slug" >&2
+        status=1
+    fi
+done
+
+for path in $(git diff --cached --name-only --diff-filter=AM -- 'content/**/schedule.toml'); do
+    echo "pre-commit: $path is queue metadata and never belongs in the repo." >&2
+    status=1
+done
+
+if [ "$status" -ne 0 ]; then
+    echo "            Unstage it, or --no-verify if you mean it." >&2
+fi
+exit $status
