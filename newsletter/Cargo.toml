@@ -1,0 +1,42 @@
+[package]
+name = "lindfors-newsletter"
+version = "0.2.0"
+edition = "2021"
+
+# The newsletter, as one service on mail.lindfors.no: the public endpoints a reader
+# reaches (subscribe, confirm, unsubscribe), the send that an operator triggers, and the
+# dashboard that shows what happened. State is in the Postgres on the same box. It
+# replaces the Cloudflare Worker in `api/` and the separate `admin/` service; README.md
+# has the reasoning.
+#
+# Built without a TLS stack and without any C, on purpose: every upstream -- Postgres,
+# Stalwart, Kanidm through nginx, OpenObserve -- is a port on this same machine, and
+# that is what makes cross-compiling for the host a plain `cargo build --target`.
+
+[dependencies]
+axum = "0.8.9"
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "net", "signal", "time"] }
+# No TLS feature: see the note above and the admin crate's history in README.md.
+reqwest = { version = "0.13.4", default-features = false, features = ["json"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+base64 = "0.23.1"
+
+# Postgres over loopback, plaintext, scram-sha-256 auth. Pure Rust, which is the whole
+# reason it can be here.
+tokio-postgres = "0.7"
+deadpool-postgres = "0.14"
+
+# The signed links: HMAC-SHA256 over `purpose:v1:...`, the same construction the
+# Worker used, so the pending-subscriber state still lives in the link and not in a
+# table that would need expiring.
+hmac = "0.12"
+sha2 = "0.10"
+
+# The issue body: markdown from static/newsletter/<slug>.md rendered to HTML and
+# sanitised before it goes into anyone's inbox.
+pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
+ammonia = "4"
+
+# Query strings in links and the form bodies that come back from them.
+form_urlencoded = "1"

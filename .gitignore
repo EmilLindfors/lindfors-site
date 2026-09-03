@@ -41,11 +41,8 @@ Thumbs.db
 *.tmp
 *.bak
 
-# The admin service. Runs on the private host, not from this repo, and is not ready
-# to be published. Listed here for the same reason the notes below are: deploy.sh
-# runs `git add -A`, so an untracked directory that is not ignored gets committed and
-# pushed by the next deploy without anyone deciding to publish it. Delete this line
-# when it should be tracked -- CLAUDE.md and admin/README.md already describe it.
+# The old admin service, superseded by newsletter/ on 2026-09-03 and kept out of the
+# repo while the directory still exists locally. Delete the directory and this rule.
 admin/
 
 # Internal working notes -- not for the public repo. These MUST stay listed here:

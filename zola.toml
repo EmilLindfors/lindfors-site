@@ -74,7 +74,7 @@ katex = true
 toc = true
 
 # Newsletter (Pages Function backed by D1)
-newsletter_endpoint = "/api/subscribe"
+newsletter_endpoint = "https://newsletter.lindfors.no/api/subscribe"
 
 # Default OG image (place a 1200x630 image at static/og-default.png)
 og_image = "/og-default.png"

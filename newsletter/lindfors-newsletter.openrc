@@ -1,0 +1,59 @@
+#!/sbin/openrc-run
+# The newsletter service: public subscribe/confirm/unsubscribe, the send, and the
+# dashboard. Install as /etc/init.d/lindfors-newsletter (mode 0755).
+#
+# OpenRC, not systemd: mail.lindfors.no is Alpine with busybox init. There is no
+# systemctl on that box and no EnvironmentFile directive, which is why the environment
+# is sourced in start_pre below.
+#
+#   rc-update add lindfors-newsletter default
+#   rc-service lindfors-newsletter start
+#
+# See README.md for the build (cross-compiled for aarch64-musl) and what sits in front.
+
+name="lindfors-newsletter"
+description="lindfors.no newsletter: public endpoints, send, dashboard"
+
+command="/opt/lindfors-newsletter/lindfors-newsletter"
+command_user="lindfors-newsletter:lindfors-newsletter"
+command_background="yes"
+pidfile="/run/${RC_SVCNAME}.pid"
+
+output_log="/var/log/lindfors-newsletter/app.log"
+error_log="/var/log/lindfors-newsletter/error.log"
+
+env_file="/etc/lindfors-newsletter.env"
+
+depend() {
+    need net postgresql
+    after firewall nginx
+}
+
+start_pre() {
+    checkpath --directory --owner lindfors-newsletter:lindfors-newsletter --mode 0755 \
+        /var/log/lindfors-newsletter
+
+    if [ ! -f "$env_file" ]; then
+        eerror "$env_file is missing. Copy env.example to it and fill it in."
+        return 1
+    fi
+
+    # Refuse a world-readable credential file. It holds the database password, the
+    # sender's app password and the signing secrets, and a mode nobody checks drifts.
+    mode=$(stat -c %a "$env_file" 2>/dev/null)
+    if [ "$mode" != "600" ] && [ "$mode" != "400" ]; then
+        eerror "$env_file is mode $mode; must be 0600. chmod 600 it."
+        return 1
+    fi
+
+    # Sourced with `set -a`, which exports everything the file assigns and does not
+    # word-split values the way the `export $(grep ...)` idiom does.
+    #
+    # start_pre runs as root, before start-stop-daemon drops to command_user, so the
+    # file stays root-owned and 0600: the service reads it without the account it runs
+    # as ever being able to.
+    set -a
+    # shellcheck disable=SC1090
+    . "$env_file" || { eerror "could not read $env_file"; return 1; }
+    set +a
+}

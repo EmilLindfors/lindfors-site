@@ -1,0 +1,16 @@
+# Cross-compiling to the host (Alpine, aarch64, musl) with nothing installed but a
+# rustup target.
+#
+# `cargo build --target aarch64-unknown-linux-musl` gets all the way through compilation
+# and then dies with `linker \`cc\` not found`: cargo's default linker driver for that
+# target is the system cc, and a Windows workstation has no aarch64-musl one.
+#
+# rust-lld ships with the toolchain and can link it, because this target is statically
+# linked by default (`crt-static`) against the musl libc that rustup's `rust-std`
+# component already provides. So there is nothing external to find.
+#
+# This only works because the binary carries no C: dropping rustls (see Cargo.toml) is
+# what removed the last object files that would have needed a cross *compiler* as well
+# as a cross linker.
+[target.aarch64-unknown-linux-musl]
+linker = "rust-lld"

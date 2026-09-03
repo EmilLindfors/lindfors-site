@@ -1,0 +1,5 @@
+# The newsletter endpoints moved from a Worker on this origin to newsletter.lindfors.no
+# on 2026-09-03. Links in mail already delivered still say lindfors.no/api/confirm and
+# lindfors.no/api/unsubscribe, and the second kind never expires. 308, not 301: the
+# one-click unsubscribe is a POST, and 301 would turn it into a GET of the page instead.
+/api/* https://newsletter.lindfors.no/api/:splat 308

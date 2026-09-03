@@ -208,7 +208,7 @@
     } // start()
 
     // No allowedTracingUrls. The only same-origin fetch on this site is the
-    // newsletter POST to /api/subscribe, and tracing it means injecting
+    // newsletter POST to newsletter.lindfors.no, and tracing it means injecting
     // x-openobserve-* headers, which turns a CORS-simple request into a preflighted
     // one against a Worker that answers no OPTIONS.
 

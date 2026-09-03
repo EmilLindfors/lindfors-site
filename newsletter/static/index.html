@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<!--
+  The newsletter dashboard.
+
+  Self-contained on purpose: no stylesheet, font or script from anywhere else, so the
+  only things this page depends on at runtime are the service that served it and the
+  identity provider. It is compiled into the binary with include_str!, which is why there are no
+  build-time asset paths to get wrong either.
+
+  The markup is a shell. Every number arrives over an authenticated fetch.
+-->
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Newsletter — lindfors.no</title>
+
+    <style>
+        /* The blog's palette, restated rather than linked. Two files that must agree is
+           worse than one file that is slightly out of date, and this page is not the
+           blog: it is a control panel that happens to belong to the same person. */
+        :root {
+            color-scheme: light dark;
+
+            --color-bg: #F0EAE0;
+            --color-bg-secondary: #E8E0D4;
+            --color-text: #1C3240;
+            --color-text-secondary: #5A7078;
+            --color-text-inverse: #F0EAE0;
+            --color-link: #D4706A;
+            --color-border: #E4DED5;
+
+            /* Three categorical hues in a fixed order -- requested, confirmed,
+               unsubscribed -- bound to the entity and never to its rank.
+
+               Not the blog's own accent pair. Its coral and teal sit ~3.5 ΔE apart
+               under simulated protanopia, which is the red/green confusion in its most
+               ordinary form: a fine accent pair, and unusable as adjacent series. */
+            --series-requested: #1f6fb2;
+            --series-confirmed: #1e8f6a;
+            --series-unsubscribed: #c9451f;
+
+            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                "Helvetica Neue", Arial, sans-serif;
+            --font-mono: "SF Mono", "Fira Code", Menlo, Consolas, monospace;
+
+            --spacing-xs: 0.25rem;
+            --spacing-sm: 0.5rem;
+            --spacing-md: 1rem;
+            --spacing-lg: 2rem;
+            --spacing-xl: 4rem;
+        }
+
+        /* Dark is followed, not toggled: there is no theme button here, and a control
+           panel opened at two in the morning should not be the one page that stays
+           bright. The series steps are chosen against the dark surface rather than
+           lightened from the light ones -- each set was checked on its own ground. */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --color-bg: #0E1A20;
+                --color-bg-secondary: #152730;
+                --color-text: #E8F0F0;
+                --color-text-secondary: #8BA5A8;
+                --color-text-inverse: #0E1A20;
+                --color-link: #F2A07B;
+                --color-border: #1E3640;
+
+                --series-requested: #4e9bd9;
+                --series-confirmed: #25a87e;
+                --series-unsubscribed: #e06a34;
+            }
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--color-bg);
+            color: var(--color-text);
+            margin: 0;
+            padding: var(--spacing-lg) var(--spacing-md) var(--spacing-xl);
+            line-height: 1.5;
+        }
+
+        .admin { max-width: 60rem; margin: 0 auto; }
+
+        .admin-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: var(--spacing-md);
+            flex-wrap: wrap;
+            border-bottom: 1px solid var(--color-border);
+            padding-bottom: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .admin-header h1 { font-size: 1.25rem; font-weight: 600; margin: 0; }
+
+        .admin-actions { display: flex; gap: var(--spacing-md); align-items: center; }
+
+        .admin-header a {
+            color: var(--color-text-secondary);
+            font-size: 0.85rem;
+            text-decoration: none;
+        }
+
+        .admin-header a:hover { color: var(--color-link); }
+
+        button {
+            font: inherit;
+            font-size: 0.85rem;
+            color: var(--color-text);
+            background: var(--color-bg-secondary);
+            border: 1px solid var(--color-border);
+            border-radius: 4px;
+            padding: 0.4rem 0.9rem;
+            cursor: pointer;
+        }
+
+        button:hover { border-color: var(--color-link); }
+
+        .button--primary {
+            background: var(--color-link);
+            border-color: var(--color-link);
+            color: var(--color-text-inverse);
+            font-size: 1rem;
+            padding: 0.6rem 1.4rem;
+        }
+
+        /* --- states --------------------------------------------------- */
+
+        .panel {
+            text-align: center;
+            padding: var(--spacing-xl) var(--spacing-md);
+            color: var(--color-text-secondary);
+        }
+
+        .panel p { max-width: 30rem; margin: 0 auto var(--spacing-lg); }
+
+        .notice {
+            border-left: 3px solid var(--color-link);
+            background: var(--color-bg-secondary);
+            padding: var(--spacing-md);
+            margin-bottom: var(--spacing-lg);
+            font-size: 0.85rem;
+            text-align: left;
+        }
+
+        .notice ul { margin: var(--spacing-sm) 0 0; padding-left: 1.2rem; }
+        .notice code { font-family: var(--font-mono); font-size: 0.8rem; }
+
+        /* --- stat tiles ----------------------------------------------- */
+
+        .tiles {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+            gap: var(--spacing-md);
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .tile {
+            background: var(--color-bg-secondary);
+            border: 1px solid var(--color-border);
+            border-radius: 6px;
+            padding: var(--spacing-md);
+        }
+
+        .tile-label {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--color-text-secondary);
+            margin-bottom: var(--spacing-xs);
+        }
+
+        /* Proportional figures, not tabular: these are standalone numbers, and equal
+           width digits make a short one look loose at this size. */
+        .tile-value { font-weight: 600; font-size: 1.75rem; line-height: 1.1; }
+
+        .tile-note {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--color-text-secondary);
+            margin-top: var(--spacing-xs);
+        }
+
+        /* The one hero figure on the page. */
+        .tile--hero .tile-value { font-size: 3rem; }
+
+        /* --- chart ---------------------------------------------------- */
+
+        section { margin-bottom: var(--spacing-xl); }
+
+        h2 { font-size: 1rem; font-weight: 600; margin: 0 0 var(--spacing-xs); }
+
+        .section-note {
+            font-size: 0.8rem;
+            color: var(--color-text-secondary);
+            margin: 0 0 var(--spacing-md);
+        }
+
+        .legend {
+            display: flex;
+            gap: var(--spacing-md);
+            flex-wrap: wrap;
+            font-size: 0.8rem;
+            color: var(--color-text-secondary);
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .legend-item { display: flex; align-items: center; gap: 0.4rem; }
+
+        .legend-swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+
+        /* Identity rides the swatch, never the text: a categorical hue set as type is
+           illegible against the surface at these sizes. */
+        .swatch--requested { background: var(--series-requested); }
+        .swatch--confirmed { background: var(--series-confirmed); }
+        .swatch--unsubscribed { background: var(--series-unsubscribed); }
+
+        /* Sized to include the x-axis band, so the axis labels never fall outside a
+           fixed height and give the card its own little scrollbar. */
+        .chart-frame { position: relative; overflow-x: auto; }
+
+        svg { display: block; width: 100%; height: auto; }
+
+        .grid-line { stroke: var(--color-border); stroke-width: 1; }
+
+        .axis-text {
+            fill: var(--color-text-secondary);
+            font-family: var(--font-sans);
+            font-size: 10px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .bar--requested { fill: var(--series-requested); }
+        .bar--confirmed { fill: var(--series-confirmed); }
+        .bar--unsubscribed { fill: var(--series-unsubscribed); }
+        /* The readers chart reuses two of the three hues: it is never on screen next
+           to the newsletter chart's legend, and a fourth and fifth colour would be
+           two more things to tell apart for no reason. */
+        .bar--views { fill: var(--series-confirmed); }
+        .bar--sessions { fill: var(--series-requested); }
+        .swatch--views { background: var(--series-confirmed); }
+        .swatch--sessions { background: var(--series-requested); }
+
+        .tiles--compact { margin-bottom: var(--spacing-lg); }
+
+        .columns {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+            gap: var(--spacing-md) var(--spacing-lg);
+            margin-top: var(--spacing-lg);
+        }
+
+        /* min-width: 0 lets a grid cell shrink below its content, which is what makes
+           the scroll box below scroll instead of the whole grid stretching. */
+        .columns > div { min-width: 0; }
+
+        h3 { font-size: 0.85rem; font-weight: 600; margin: 0 0 var(--spacing-xs); }
+
+        .table-scroll { overflow-x: auto; max-width: 100%; }
+        .table-scroll table { min-width: 100%; width: max-content; }
+
+        td.trunc {
+            max-width: 22rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .hit { fill: transparent; }
+        .hit:hover, .hit:focus { fill: var(--color-text); fill-opacity: 0.05; outline: none; }
+
+        .tooltip {
+            position: absolute;
+            pointer-events: none;
+            background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: 4px;
+            padding: 0.5rem 0.7rem;
+            font-size: 0.75rem;
+            line-height: 1.5;
+            white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+        }
+
+        .tooltip-row { display: flex; align-items: center; gap: 0.4rem; }
+        .tooltip-row b { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+        /* --- tables --------------------------------------------------- */
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+
+        th, td {
+            text-align: left;
+            padding: 0.4rem 0.6rem 0.4rem 0;
+            border-bottom: 1px solid var(--color-border);
+        }
+
+        th {
+            font-weight: 600;
+            font-size: 0.75rem;
+            color: var(--color-text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        td.num, th.num {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            padding-right: 0;
+        }
+
+        td a { color: var(--color-link); }
+
+        .empty { color: var(--color-text-secondary); font-size: 0.85rem; }
+
+        details { margin-top: var(--spacing-md); }
+
+        summary {
+            font-size: 0.8rem;
+            color: var(--color-text-secondary);
+            cursor: pointer;
+        }
+
+        details[open] summary { margin-bottom: var(--spacing-sm); }
+
+        [hidden] { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="admin">
+        <header class="admin-header">
+            <h1>Newsletter</h1>
+            <div class="admin-actions">
+                <a href="https://lindfors.no/">lindfors.no</a>
+                <button type="button" id="sign-out" hidden>Sign out</button>
+            </div>
+        </header>
+
+        <!-- Signed out, or still working out whether we are. -->
+        <div class="panel" id="panel-loading">Checking your session…</div>
+
+        <div class="panel" id="panel-signin" hidden>
+            <p>This page reads the subscriber list and the newsletter logs. Sign in to
+               see them.</p>
+            <button type="button" class="button--primary" id="sign-in">Sign in</button>
+        </div>
+
+        <div class="panel" id="panel-error" hidden></div>
+
+        <!-- Signed in. -->
+        <main id="dashboard" hidden>
+            <div class="notice" id="warnings" hidden></div>
+
+            <div class="tiles" id="tiles"></div>
+
+            <section>
+                <h2>Weekly list activity</h2>
+                <p class="section-note" id="chart-note"></p>
+
+                <div class="legend">
+                    <span class="legend-item"><span class="legend-swatch swatch--requested"></span>Requested</span>
+                    <span class="legend-item"><span class="legend-swatch swatch--confirmed"></span>Confirmed</span>
+                    <span class="legend-item"><span class="legend-swatch swatch--unsubscribed"></span>Unsubscribed</span>
+                </div>
+
+                <div class="chart-frame" id="chart-frame">
+                    <div class="tooltip" id="tooltip" role="status" hidden></div>
+                </div>
+
+                <details>
+                    <summary>Table view</summary>
+                    <table id="weeks-table"></table>
+                </details>
+            </section>
+
+            <section>
+                <h2>Issues sent</h2>
+                <p class="section-note">One file per issue in the send log. The claim is
+                   what makes a re-send impossible; deleting a row there is how you undo
+                   that deliberately.</p>
+                <div id="sends"></div>
+            </section>
+
+            <!-- Present only when the service is configured against OpenObserve. -->
+            <section id="readers" hidden>
+                <h2>Readers</h2>
+                <p class="section-note" id="readers-note"></p>
+
+                <div class="tiles tiles--compact" id="readers-tiles"></div>
+
+                <div class="legend">
+                    <span class="legend-item"><span class="legend-swatch swatch--views"></span>Page views</span>
+                    <span class="legend-item"><span class="legend-swatch swatch--sessions"></span>Sessions</span>
+                </div>
+
+                <div class="chart-frame" id="readers-chart">
+                    <div class="tooltip" id="readers-tooltip" role="status" hidden></div>
+                </div>
+
+                <div class="columns">
+                    <div>
+                        <h3>Pages</h3>
+                        <div id="readers-pages"></div>
+                    </div>
+                    <div>
+                        <h3>Where sessions came from</h3>
+                        <div id="readers-referrers"></div>
+                    </div>
+                    <div>
+                        <h3>Links clicked</h3>
+                        <div id="readers-links"></div>
+                    </div>
+                    <div>
+                        <h3>Countries</h3>
+                        <div id="readers-countries"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script type="module" src="/admin.js"></script>
+</body>
+</html>

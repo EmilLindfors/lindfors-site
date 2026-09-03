@@ -71,15 +71,13 @@ jobs:
       - name: Test blog content negotiation
         run: node --test tools/tests/middleware.test.mjs
 
-  check-worker:
+  test-newsletter:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
 
       - name: Cache cargo
         uses: actions/cache@v4
@@ -87,25 +85,26 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            api/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('api/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
+            newsletter/target
+          key: ${{ runner.os }}-newsletter-${{ hashFiles('newsletter/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-newsletter-
 
-      - name: Check Worker compiles
-        working-directory: api
-        run: cargo check --target wasm32-unknown-unknown
-
-      # Host target, not wasm: these cover the pure logic -- confirmation token
-      # signing and expiry, email validation, HTML escaping -- which is why the crate
-      # is built as `rlib` alongside `cdylib`. Anything touching the JS bindings
-      # cannot run here and is not tested.
-      - name: Test Worker
-        working-directory: api
+      # The halves that can be checked without a live Postgres, Stalwart or Kanidm:
+      # the signed links, address validation, the rate limiter, the mail templates and
+      # JMAP request shapes, the SQL text, the derived CSP. The network paths are thin
+      # wrappers so that this covers most of the logic.
+      - name: Test newsletter service
+        working-directory: newsletter
         run: cargo test
 
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
+      - name: Check newsletter service builds
+        working-directory: newsletter
+        run: cargo build --release
 
-      - name: Audit dependencies
-        working-directory: api
-        run: cargo audit
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Test dashboard scripts
+        working-directory: newsletter
+        run: node --test tests/admin-auth.test.mjs tests/admin-readers.test.mjs
