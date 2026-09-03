@@ -372,31 +372,92 @@ function renderWeeksTable(table, weeks) {
     }
 }
 
-function renderSends(container, slugs) {
-    container.replaceChildren();
-    if (slugs.length === 0) {
-        const empty = document.createElement("p");
-        empty.className = "empty";
-        empty.textContent = "Nothing has been sent yet.";
-        container.appendChild(empty);
-        return;
+/**
+ * The issues, one row each, with what the record says and how many current
+ * subscribers are still without it. Pure: the counting is here, not in the service.
+ */
+export function issueRows(sends, deliveries, subscribers) {
+    const got = new Map(); // slug -> Set of subjects with a sent or assumed delivery
+    for (const d of deliveries) {
+        if (d.status !== "sent" && d.status !== "assumed") continue;
+        if (!got.has(d.slug)) got.set(d.slug, new Set());
+        got.get(d.slug).add(d.subject);
     }
+    return sends.map((send) => {
+        const have = got.get(send.slug) || new Set();
+        const missing = subscribers.filter((s) => !have.has(s.subject)).length;
+        return {
+            slug: send.slug,
+            when: (send.finished_at || send.claimed_at || "").slice(0, 10),
+            status: send.status,
+            sent: send.sent,
+            failed: (send.failed || []).length,
+            missing,
+        };
+    });
+}
 
-    const table = document.createElement("table");
-    const head = table.createTHead().insertRow();
-    for (const heading of ["Issue"]) {
-        const th = document.createElement("th");
-        th.textContent = heading;
-        head.appendChild(th);
+/** Each subscriber with the slugs they have received, in send order. */
+export function subscriberRows(subscribers, deliveries, sends) {
+    const order = new Map(sends.map((s, i) => [s.slug, i]));
+    const bySubject = new Map();
+    for (const d of deliveries) {
+        if (d.status === "failed") continue;
+        if (!bySubject.has(d.subject)) bySubject.set(d.subject, []);
+        bySubject.get(d.subject).push(d);
     }
-    const body = table.createTBody();
-    for (const slug of [...slugs].reverse()) {
-        const link = document.createElement("a");
-        link.href = SITE_URL + "/blog/" + slug + "/";
-        link.textContent = slug;
-        body.insertRow().insertCell().appendChild(link);
-    }
-    container.appendChild(table);
+    return subscribers.map((s) => {
+        const had = (bySubject.get(s.subject) || [])
+            .sort((a, b) => (order.get(a.slug) ?? 0) - (order.get(b.slug) ?? 0))
+            .map((d) => (d.status === "assumed" ? d.slug + " (assumed)" : d.slug));
+        return {
+            email: s.email,
+            since: (s.subscribed_at || "").slice(0, 10),
+            source: s.source,
+            issues: had.length,
+            of: sends.length,
+            had,
+        };
+    });
+}
+
+function renderSends(container, sends, deliveries, subscribers) {
+    const rows = issueRows(sends, deliveries, subscribers);
+    renderRows(
+        container,
+        rows,
+        [
+            { key: "slug", label: "Issue", link: true, text: (v) => v },
+            { key: "when", label: "Sent" },
+            { key: "status", label: "Status" },
+            { key: "sent", label: "Sent to", num: true },
+            { key: "failed", label: "Failed", num: true },
+            { key: "missing", label: "Missing", num: true },
+        ],
+        "Nothing has been sent yet.",
+    );
+    // The link column wants a URL; the slug becomes one here rather than in the data.
+    container.querySelectorAll("a").forEach((a) => {
+        const slug = a.textContent;
+        a.href = SITE_URL + "/blog/" + slug + "/";
+        a.title = a.href;
+    });
+}
+
+function renderSubscribers(container, subscribers, deliveries, sends) {
+    const rows = subscriberRows(subscribers, deliveries, sends);
+    renderRows(
+        container,
+        rows,
+        [
+            { key: "email", label: "Address" },
+            { key: "since", label: "Since" },
+            { key: "source", label: "Source" },
+            { key: "issues", label: "Issues had", num: true },
+            { key: "had", label: "Which", text: (v) => (v.length ? v.join(", ") : "none yet") },
+        ],
+        "Nobody is on the list.",
+    );
 }
 
 function renderWarnings(container, errors) {
@@ -650,7 +711,8 @@ function render(data) {
     }
 
     renderWeeksTable(document.getElementById("weeks-table"), weeks);
-    renderSends(document.getElementById("sends"), data.sends || []);
+    renderSends(document.getElementById("sends"), data.sends || [], data.deliveries || [], data.subscriber_list || []);
+    renderSubscribers(document.getElementById("subscribers"), data.subscriber_list || [], data.deliveries || [], data.sends || []);
     renderReaders(data.rum);
     show("dashboard");
 }

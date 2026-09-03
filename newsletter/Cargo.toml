@@ -40,3 +40,6 @@ ammonia = "4"
 
 # Query strings in links and the form bodies that come back from them.
 form_urlencoded = "1"
+
+# Addresses at rest: XChaCha20-Poly1305 under DATA_KEY, pure Rust. See crypto.rs.
+chacha20poly1305 = "0.10"

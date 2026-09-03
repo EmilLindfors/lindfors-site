@@ -37,6 +37,12 @@ struct EmailRequest {
 struct SendRequest {
     slug: String,
     subject: Option<String>,
+    /// `all` (the default): a full send, refused if the issue has gone out before.
+    /// `catch-up`: only to current subscribers with no delivery of this issue, which
+    /// is how a newcomer gets an old post or a series without everyone else getting
+    /// it twice. A catch-up of an issue never sent is a full send.
+    #[serde(default)]
+    mode: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -52,10 +58,21 @@ struct ApiResponse {
 struct SendResponse {
     success: bool,
     sent: usize,
+    /// Subscribers a catch-up left alone because they already had the issue.
+    #[serde(skip_serializing_if = "is_zero")]
+    skipped: usize,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     failed: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<String>,
+}
+
+fn is_zero(n: &usize) -> bool {
+    *n == 0
+}
+
+fn send_failure(status: u16, error: String) -> Response {
+    json(status, &SendResponse { success: false, sent: 0, skipped: 0, failed: vec![], error: Some(error) })
 }
 
 // ---------------------------------------------------------------------------
@@ -529,59 +546,89 @@ pub async fn send_newsletter(State(app): State<Arc<App>>, headers: HeaderMap, bo
     let rendered_body = render_markdown(md_body);
     let subject = request.subject.unwrap_or_else(|| title.clone());
 
-    let recipients = match app.db.recipients().await {
+    let recipients = match app.db.subscribers().await {
         Ok(r) => r,
         Err(e) => return api_error(503, &format!("Could not read the list: {e}")),
     };
+    let catch_up = request.mode.as_deref() == Some("catch-up");
 
-    // Claim the slug before a single message goes out. The primary key is the lock; a
-    // send whose response was lost, followed by a retry, meets it here.
-    match app.db.claim_send(&slug, recipients.len() as i32).await {
-        Ok(Claim::Won) => {}
-        Ok(Claim::AlreadySent) => {
-            println!("refusing to send {slug}: already claimed");
-            return json(409, &SendResponse {
-                success: false,
-                sent: 0,
-                failed: vec![],
-                error: Some(format!("{slug} has already been sent. Delete its row in `sends` to send it again.")),
-            });
-        }
-        // Fails closed: a newsletter going out late is recoverable; one going out twice
-        // is not.
-        Err(e) => {
-            eprintln!("refusing to send {slug}: claim unavailable: {e}");
-            return json(503, &SendResponse {
-                success: false,
-                sent: 0,
-                failed: vec![],
-                error: Some(format!("Send log unavailable, refusing to send unguarded: {e}")),
-            });
+    // A full send claims the slug before a single message goes out: the primary key is
+    // the lock, and a send whose response was lost, followed by a retry, meets it
+    // here. A catch-up of an issue that has gone out skips the claim and the delivery
+    // table decides who is left; a catch-up of one that never went out is a full send.
+    let already_sent = match app.db.send_exists(&slug).await {
+        Ok(b) => b,
+        Err(e) => return send_failure(503, format!("Send log unavailable, refusing to send unguarded: {e}")),
+    };
+    let topping_up = catch_up && already_sent;
+    if !topping_up {
+        match app.db.claim_send(&slug, recipients.len() as i32).await {
+            Ok(Claim::Won) => {}
+            Ok(Claim::AlreadySent) => {
+                println!("refusing to send {slug}: already claimed");
+                return send_failure(409, format!(
+                    "{slug} has already been sent. Use --catch-up to reach only those who have not had it, \
+                     or delete its row in `sends` to send it to everyone again."
+                ));
+            }
+            Err(e) => {
+                eprintln!("refusing to send {slug}: claim unavailable: {e}");
+                return send_failure(503, format!("Send log unavailable, refusing to send unguarded: {e}"));
+            }
         }
     }
+    let delivered = if topping_up {
+        match app.db.delivered_subjects(&slug).await {
+            Ok(d) => d,
+            Err(e) => return send_failure(503, format!("Could not read deliveries: {e}")),
+        }
+    } else {
+        Default::default()
+    };
 
     // One message per recipient, so each carries its own signed unsubscribe URL in the
     // header and the footer, which is what makes one-click unsubscribe possible at all.
+    // Each outcome is written to `deliveries` as it happens, so a process that dies
+    // mid-send leaves a record a catch-up can finish from.
     let mut sent = 0usize;
+    let mut skipped = 0usize;
     let mut failed: Vec<String> = Vec::new();
-    for email in &recipients {
+    for subscriber in &recipients {
+        if delivered.contains(&subscriber.subject) {
+            skipped += 1;
+            continue;
+        }
+        let email = &subscriber.email;
         let sig = tokens::unsubscribe_signature(&app.config.confirm_secret, email);
         let unsubscribe_url = tokens::unsubscribe_link(&app.config.public_url, email, &sig);
         let html = email_template(&title, &description, &date, &post_url, &rendered_body, &app.config.site_url, &unsubscribe_url);
-        match mail::send(&app.client, &app.config.sender, email, &subject, &html, Some(&unsubscribe_url)).await {
-            Ok(()) => sent += 1,
+        let outcome = mail::send(&app.client, &app.config.sender, email, &subject, &html, Some(&unsubscribe_url)).await;
+        let status = match &outcome {
+            Ok(()) => {
+                sent += 1;
+                "sent"
+            }
             Err(e) => {
                 // Named, because this endpoint is admin-only and the operator needs to
                 // know exactly whom to retry.
                 eprintln!("newsletter send to {email} failed: {e}");
                 failed.push(email.clone());
+                "failed"
             }
+        };
+        if let Err(e) = app.db.record_delivery(&slug, email, status).await {
+            eprintln!("could not record the delivery of {slug}: {e}");
         }
     }
-    println!("newsletter {slug}: {sent} sent, {} failed", failed.len());
+    println!("newsletter {slug}: {sent} sent, {skipped} skipped, {} failed", failed.len());
 
     let all_ok = failed.is_empty();
-    if let Err(e) = app.db.record_send(&slug, sent as i32, &failed, all_ok).await {
+    let recorded = if topping_up {
+        app.db.record_catch_up(&slug, sent as i32, &failed).await
+    } else {
+        app.db.record_send(&slug, sent as i32, &failed, all_ok).await
+    };
+    if let Err(e) = recorded {
         eprintln!("could not record the send of {slug}: {e}");
     }
 
@@ -590,6 +637,7 @@ pub async fn send_newsletter(State(app): State<Arc<App>>, headers: HeaderMap, bo
         &SendResponse {
             success: all_ok,
             sent,
+            skipped,
             failed,
             error: if all_ok { None } else { Some("Some recipients could not be reached; see `failed`.".into()) },
         },

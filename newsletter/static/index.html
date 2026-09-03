@@ -377,10 +377,21 @@
 
             <section>
                 <h2>Issues sent</h2>
-                <p class="section-note">One file per issue in the send log. The claim is
-                   what makes a re-send impossible; deleting a row there is how you undo
-                   that deliberately.</p>
+                <p class="section-note">One row per issue in <code>sends</code>. The row is
+                   the lock: a second full send fails on it, and deleting it is how a
+                   full re-send is done on purpose. <em>Missing</em> counts current
+                   subscribers with no delivery of that issue;
+                   <code>site-tools newsletter send &lt;slug&gt; --catch-up</code> reaches
+                   exactly those.</p>
                 <div id="sends"></div>
+            </section>
+
+            <section>
+                <h2>Subscribers</h2>
+                <p class="section-note">Who is on the list and which issues each has had,
+                   decrypted for this page only. <em>assumed</em> marks issues sent
+                   before deliveries were recorded.</p>
+                <div id="subscribers"></div>
             </section>
 
             <!-- Present only when the service is configured against OpenObserve. -->

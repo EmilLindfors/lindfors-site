@@ -22,6 +22,7 @@
 //! host a plain `cargo build --target`.
 
 mod auth;
+mod crypto;
 mod db;
 mod mail;
 mod oidc;
@@ -47,6 +48,8 @@ use serde::Serialize;
 const INDEX_HTML: &str = include_str!("../static/index.html");
 const ADMIN_JS: &str = include_str!("../static/admin.js");
 const ADMIN_AUTH_JS: &str = include_str!("../static/admin-auth.js");
+/// The tables, applied by `lindfors-newsletter migrate`.
+const SCHEMA_SQL: &str = include_str!("../schema.sql");
 
 pub struct Config {
     /// `https://lindfors.no`: where links in mail point readers, and the CORS origin.
@@ -60,6 +63,8 @@ pub struct Config {
     pub cors_origins: Vec<String>,
     pub confirm_secret: String,
     pub event_log_secret: String,
+    /// Seals every address at rest. See `crypto.rs`.
+    pub data_key: String,
     pub admin_key: String,
     pub sender: mail::Sender,
     /// The **public** OIDC issuer, handed to the browser; and the same one reached
@@ -130,6 +135,7 @@ impl Config {
             site_url,
             confirm_secret,
             event_log_secret,
+            data_key: required("DATA_KEY")?,
             admin_key: required("ADMIN_KEY")?,
             sender: mail::Sender::new(
                 plaintext("JMAP_API_URL")?,
@@ -242,7 +248,12 @@ struct Overview {
     #[serde(skip_serializing_if = "Option::is_none")]
     subscribers: Option<i64>,
     events: Vec<db::EventRecord>,
-    sends: Vec<String>,
+    sends: Vec<db::SendRecord>,
+    /// Who is on the list and what each has received, decrypted for the one person
+    /// this page admits. This is the part of the page that names people, and it exists
+    /// so an old post or a series can be sent to whoever has not seen it.
+    subscriber_list: Vec<db::Subscriber>,
+    deliveries: Vec<db::Delivery>,
     #[serde(skip_serializing_if = "Option::is_none")]
     rum: Option<rum::RumOverview>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -287,12 +298,20 @@ async fn overview(State(app): State<Arc<App>>, headers: HeaderMap) -> Response {
         errors.push(format!("send log: {e}"));
         Vec::new()
     });
+    let subscriber_list = app.db.subscribers().await.unwrap_or_else(|e| {
+        errors.push(format!("subscriber addresses: {e}"));
+        Vec::new()
+    });
+    let deliveries = app.db.deliveries().await.unwrap_or_else(|e| {
+        errors.push(format!("deliveries: {e}"));
+        Vec::new()
+    });
     let rum = match &app.config.rum {
         Some(config) => Some(rum::overview(&app.client, config, &mut errors).await),
         None => None,
     };
 
-    Json(Overview { subscribers, events, sends, rum, errors }).into_response()
+    Json(Overview { subscribers, events, sends, subscriber_list, deliveries, rum, errors }).into_response()
 }
 
 // ---------------------------------------------------------------------------
@@ -310,13 +329,60 @@ async fn main() {
         }
     };
 
-    let db = match db::Db::connect(&required("DATABASE_URL").unwrap_or_default()) {
+    let vault = match crypto::Vault::from_hex_key(&config.data_key) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("lindfors-newsletter: {e}");
+            std::process::exit(1);
+        }
+    };
+    let db = match db::Db::connect(
+        &required("DATABASE_URL").unwrap_or_default(),
+        vault,
+        config.event_log_secret.clone(),
+    ) {
         Ok(db) => db,
         Err(e) => {
             eprintln!("lindfors-newsletter: {e}");
             std::process::exit(1);
         }
     };
+
+    // Operator commands, run by hand with the same environment file sourced. They do
+    // their one thing and exit; nothing listens.
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    match args.first().map(String::as_str) {
+        Some("migrate") => {
+            match db.migrate(SCHEMA_SQL).await {
+                Ok(report) => println!("{report}"),
+                Err(e) => {
+                    eprintln!("lindfors-newsletter migrate: {e}");
+                    std::process::exit(1);
+                }
+            }
+            return;
+        }
+        Some("assume-delivered") => {
+            let Some(slug) = args.get(1) else {
+                eprintln!("usage: lindfors-newsletter assume-delivered <slug> [email]");
+                std::process::exit(2);
+            };
+            match db.assume_delivered(slug, args.get(2).map(String::as_str)).await {
+                Ok(n) => println!("{slug}: {n} delivery row(s) marked assumed"),
+                Err(e) => {
+                    eprintln!("lindfors-newsletter assume-delivered: {e}");
+                    std::process::exit(1);
+                }
+            }
+            return;
+        }
+        Some(other) => {
+            eprintln!("lindfors-newsletter: unknown command {other}; commands: migrate, assume-delivered");
+            std::process::exit(2);
+        }
+        None => {}
+    }
+
     if let Err(e) = db.check().await {
         eprintln!("lindfors-newsletter: {e}");
         std::process::exit(1);

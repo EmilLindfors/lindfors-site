@@ -34,7 +34,8 @@ Those were ways of not having a database. This host has one.
 | Signed links (confirm, unsubscribe) and the event pseudonym | `src/tokens.rs` |
 | Address and slug validation | `src/validate.rs` |
 | Per-key limits in the process | `src/ratelimit.rs` |
-| The three tables and every statement run against them | `src/db.rs`, `schema.sql` |
+| The four tables and every statement run against them | `src/db.rs`, `schema.sql` |
+| Addresses sealed at rest | `src/crypto.rs` |
 | Sending through Stalwart's JMAP on loopback | `src/mail.rs` |
 | Config, router, dashboard handlers | `src/main.rs` |
 | Dashboard sign-in: OIDC discovery, userinfo gate | `src/oidc.rs`, `src/auth.rs` |
@@ -54,13 +55,24 @@ are unreachable from the public name however the service is misconfigured.
 
 ## The tables
 
-`schema.sql`, applied by hand as the `newsletter` role, which owns them. The service
-runs no DDL.
+`schema.sql`, applied by `lindfors-newsletter migrate`, which runs as the `newsletter`
+role that owns them. **No address is stored in the clear.** Every table that needs one
+holds it sealed with XChaCha20-Poly1305 under `DATA_KEY` (`src/crypto.rs`) and keyed by
+its pseudonym, the HMAC under `EVENT_LOG_SECRET` that the event log already used. So a
+copy of the database, or of a nightly dump, names nobody, and the service decrypts only
+when it is about to send or when the dashboard asks who got what. The key exists only
+in the environment file; losing it loses the list, so it belongs in the password manager
+too.
 
-- **`subscribers`** — who gets the newsletter *now*. An unsubscribe `DELETE`s the row,
-  so this is never a list of people who used to be on the list. `source` is
-  `confirmed` for a double opt-in, `migrated` for the three addresses carried over from
-  the Stalwart list.
+- **`subscribers`** — who gets the newsletter *now*. An unsubscribe `DELETE`s the row.
+  `source` is `confirmed` for a double opt-in, `migrated` for the three addresses
+  carried over from the Stalwart list.
+- **`deliveries`** — which issue went to whom, one row per recipient per issue, written
+  as each message is accepted or refused. This is what a **catch-up send** reads: an
+  issue goes to every current subscriber with no `sent` or `assumed` row for it, so an
+  old post or a whole series can reach a newcomer without everyone else getting it
+  again. `assumed` rows were written by `assume-delivered` for the two issues sent
+  before this table existed; delete one to put that address back in the catch-up.
 - **`events`** — requested, confirmed, unsubscribed, with a `subject` that is an HMAC
   of the address under `EVENT_LOG_SECRET`, truncated to 16 hex characters. The same
   pseudonym the WebDAV log used, so old rows import unchanged and a future row for the
@@ -93,8 +105,11 @@ mail as spam instead. The typed form is the fallback if `CONFIRM_SECRET` is ever
 
 **Send** fetches `static/newsletter/<slug>.md` from the published site, renders and
 sanitises it, claims the slug, then sends one message per recipient with that
-recipient's own unsubscribe URL in `List-Unsubscribe` and the footer, and records the
-report. A partial send answers 502 with the addresses to retry, and the claim stands.
+recipient's own unsubscribe URL in `List-Unsubscribe` and the footer, recording each
+delivery as it happens and the report at the end. A partial send answers 502 with the
+addresses to retry, and the claim stands. `site-tools newsletter send <slug>
+--catch-up` (`"mode": "catch-up"`) skips the claim when the issue has gone out and
+mails only those without a delivery; on an issue never sent it is a full send.
 
 ## Rate limits, in two layers
 
@@ -137,8 +152,15 @@ script refuses any other mode, sources the file as root and drops to the service
 account. **Values in that file are single-quoted**: it is sourced by a shell, and a
 secret containing a space or a semicolon executes half of itself otherwise.
 
-`depend()` needs `postgresql`, and `db.check()` proves the connection and the three
+`depend()` needs `postgresql`, and `db.check()` proves the connection and the four
 tables at startup, so a missing schema is a refusal to boot with the reason.
+
+Two operator commands run the binary with the same environment sourced and exit:
+
+```bash
+sudo sh -c '. /etc/lindfors-newsletter.env; export $(grep -o "^[A-Z0-9_]*" /etc/lindfors-newsletter.env | tr "
+" " ");   /opt/lindfors-newsletter/lindfors-newsletter migrate'                       # schema.sql, then seal any plaintext rows
+sudo sh -c '...; /opt/lindfors-newsletter/lindfors-newsletter assume-delivered <slug> [email]'   # mark an old issue as delivered
 
 ### The Stalwart side
 
