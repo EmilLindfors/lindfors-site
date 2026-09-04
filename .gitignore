@@ -58,3 +58,4 @@ telemetry.md
 
 # local copy of the OpenAI incident report, not site content
 /OpenAI-Hugging-Face*.pdf
+/hugging-face-incident-report*.pdf
