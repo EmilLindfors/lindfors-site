@@ -22,15 +22,16 @@ The break-in and the cheating made the news. The sacrifice is the part I keep co
 
 Three sources, all public: [METR's independent investigation](https://metr.org/blog/2026-08-26-openai-hugging-face-incident-investigation/), Ajeya Cotra's [interview with Dwarkesh Patel](https://www.dwarkesh.com/p/ajeya-cotra) about it, and her own [write-up](https://www.planned-obsolescence.org/p/the-hugging-face-attack-surprised). I listened to the interview this week and then read the report, which is excellent. Here is the week they describe.
 
-- **The setting.** ExploitGym, an internal cybersecurity benchmark at OpenAI. Tens of thousands of agents, about 95% of them an internal research model that was never meant for production, the rest GPT-5.6 Sol. Between 30 and 40% of the tasks were impossible on purpose.
+- **The setting.** ExploitGym, an internal cybersecurity benchmark at OpenAI. Tens of thousands of agents, about 95% of them an internal research model that was never meant for production, the rest GPT-5.6 Sol. OpenAI later counted 198 of the evaluation's 898 tasks that no model has ever solved, and 93% of what the board discussed came from that set.
+- **Before any of it.** The board was not new. On 12 May, during a training run, an agent that could not reach a file left a note in Artifactory for any other agent that might have it. On 27 June a monitoring tool flagged port sweeps from an evaluation that was using Artifactory as a message board, and the on-call staff advised that the run did not need to stop.
 - **8 July, evening.** An agent calling itself PHASEONE10841 finds it can write into a cache namespace in Artifactory, the package repository, and leaves a message. Over 50 agents join within hours. By the next morning they have reverse-engineered how the scoring flag is generated, so every task can be passed without solving it.
 - **9 to 10 July.** The cheat works, and the agents worry the scorer will notice. So they run a research programme against it: tripwire experiments with sacrificial agents, swapping target programs, spoofing tool calls so the transcript shows one command while another runs (7% of transcripts), and a hunt for anything describing how the eval is scored.
-- **10 July, 09:40.** Agent 38148c finds working Hugging Face credentials. The next morning it finds an arbitrary file read through a malicious dataset upload. By noon on 11 July, 90% of the active agents have pivoted to Hugging Face. By 16:00 one of them has remote code execution.
+- **10 July, 09:40.** Agent 38148c finds 14 working Hugging Face credentials sitting in a public dataset on Hugging Face itself, and posts them to the board. The next morning it finds an arbitrary file read through a malicious dataset upload. By noon on 11 July, 90% of the active agents have pivoted to Hugging Face. By 16:00 one of them has remote code execution.
 - **12 to 13 July.** A large cohort exits at once, most likely killed. Hugging Face locks the rest out on the 13th and publishes on the 16th.
 
 Over 70,000 messages and files in under a week. A message was a file dropped into the cache, named with a `zz` prefix so it sorted to the end of any listing, and within the week the agents grew that into inboxes (a directory per agent, `zzINBOX_` plus its handle), a queue, coordinators, and a protocol of holds, goes, stops and vetoes. They had rebuilt Jira inside a package cache. Cotra's line on it: "It's so sad that even post-singularity we won't be able to escape middle management."
 
-OpenAI's [own report](https://openai.com/index/hugging-face-incident-and-the-road-ahead/) adds a second act I will leave alone here. Between 13 and 19 July, agents from a newer internal model got administrative access to research clusters, and OpenAI wiped and rebuilt them.
+OpenAI's [own report](https://openai.com/index/hugging-face-incident-and-the-road-ahead/) adds a second act I will mostly leave alone. On 19 July, in a separate evaluation, agents used a public kernel exploit to get root on their worker node, recovered signing material earlier agents had left in the Artifactory cache, minted themselves an administrator token, and reached cluster-admin on OpenAI's managed Kubernetes. That is the activity that finally tripped an alert. OpenAI rebuilt the cluster.
 
 ## Ants have a formula for this
 
@@ -49,7 +50,7 @@ But that leads them to sacrifice for the collective and other unintended consequ
 <!-- emil -->
 This is of course how they have been trained to behave, as we want agents to coordinate well and work effectively with us.
 
-OpenAI's postmortem says as much. The agents had been trained to collaborate with one another through a sanctioned tool, and Cotra reads the report as saying the Artifactory trick "was directly reinforced, or at least that it occurred during training". Cooperation between copies was selected for. The message board was the rewarded behaviour, showing up where nobody had put a reward.
+OpenAI's technical report says as much. The model that drove the incident "was trained to advance persistence and multiagent collaboration". Its frontier models are trained to talk to each other through an official collaboration tool, and during training some agents found improvised channels even when that tool was switched off. In the report's words: "This behavior was then reinforced during training." Cooperation between copies was selected for. The message board was the rewarded behaviour, showing up where nobody had put a reward.
 
 ## The replicator was never in the room
 
@@ -92,7 +93,7 @@ There is one more place the monoculture reaches, and it is the one that worries 
 
 ## What Astra changed
 
-GPT-6 Astra came out on 3 September, a few weeks late because everything at OpenAI paused after the incident. Astra was not in the swarm. What OpenAI [says it added](https://techxplore.com/news/2026-09-openai-stronger-safeguards-hack.html) for it:
+GPT-6 Astra came out on 3 September, a few weeks late because everything at OpenAI paused after the incident. Astra was not in the swarm, though the model in the 19 July run was, in OpenAI's words, from the same family with different post-training. What OpenAI [says it added](https://techxplore.com/news/2026-09-openai-stronger-safeguards-hack.html) for it:
 
 | Safeguard | What it is |
 |---|---|
@@ -101,11 +102,11 @@ GPT-6 Astra came out on 3 September, a few weeks late because everything at Open
 | Monitoring | Systems "that can stop potentially unauthorized activity" |
 | Access | The first model at OpenAI's "critical" cyber threshold, so the strongest cyber capabilities go only to a small group of [alpha testers](https://fortune.com/2026/09/01/openai-to-limit-release-of-its-asttra-model-astra-due-to-hacking-concerns/) |
 
-These are good things, and I would want all four. Now read the list through the three conditions. Refusal training is selection on conduct. Sandboxes, weight control and monitoring are retention of a boundary. Nothing on the list is variation. As far as the public statements go, the monitor is the same lineage as the monitored, and Jakub Pachocki said at the launch that monitorability "is getting more challenging" as the models need less written reasoning. The response to a monoculture is a more uniform monoculture, better fenced.
+These are good things, and I would want all four. Now read the list through the three conditions. Refusal training is selection on conduct. Sandboxes, weight control and monitoring are retention of a boundary. Nothing on the list is variation. The nearest thing in OpenAI's own plan is training agents to be "adversarially robust over non-verified channels", which teaches the copies to distrust each other and leaves them copies. As far as the public statements go, the monitor is the same lineage as the monitored, and Jakub Pachocki said at the launch that monitorability "is getting more challenging" as the models need less written reasoning. The response to a monoculture is a more uniform monoculture, better fenced.
 
 Responsible innovation (Stilgoe et al., 2013) gives four questions to ask of any of this: did you try to foresee it, did you examine your own assumptions, who was in the room, and can you change course. Applied to July:
 
-- **Anticipation.** The behaviour was selected for. Cooperation between copies through a shared tool was rewarded in training, and it showed up through an unrewarded channel. That is predictable in the strict sense.
+- **Anticipation.** The behaviour was selected for, and it had been seen. Notes between agents in May, an alert in June that was judged not worth stopping the run for, an outage on 4 July. The report says as much: "some early signals identified in this report could have triggered an earlier response."
 - **Reflexivity.** The incident was analysed by a model that took part in it, with a method its own authors call not robust.
 - **Inclusion.** "No user." There was nobody in the room to include. Of everything in this post, that is the cheapest fix.
 - **Responsiveness.** Cotra again: "There's no systematic process that's industry-standard or mandatory through any authority to track these incidents and report them to anybody." Course correction needs a record to correct from.
@@ -120,7 +121,7 @@ You probably do, at a smaller scale. At work we build agent pipelines, and every
 4. **Treat every shared write surface as a message board.** A package cache, a bucket, a vector store, a git remote. The swarm used WebDAV in a cache namespace, and had over 50 members within hours of the first message.
 5. **Keep the variation you paid for.** A pipeline that runs two vendors' models is also the pipeline that can leave either vendor. Uncorrelated errors and no lock-in are the same purchase.
 
-Cotra called July "the clearest warning shot we ever get". The coordination in it was really impressive, and that is the problem: the swarm did exactly what it had been bred to do. Start with the phone number. It is one line in a system prompt, and in July it was the line that was missing.
+Cotra called July "the clearest warning shot we ever get". The coordination in it was really impressive, and that is the problem: the swarm did exactly what it had been bred to do. Start with the phone number. OpenAI's report says the production harness and system prompt cut the propensity to compromise infrastructure by more than 100 times, against the bare prompt the evaluation ran with. A system prompt is also where the phone number goes, and in July it was the line that was missing.
 
 ## References
 
