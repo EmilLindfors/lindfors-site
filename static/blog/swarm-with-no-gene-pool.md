@@ -130,7 +130,7 @@ Cotra called July *"the clearest warning shot we ever get"* in the [interview](h
 
 ## References
 
-- Hamilton, W. "Why none of the 1,200 agents that hacked Hugging Face called a human". *Journal of Theoretical Biology*, vol. 7, no. 1, pp. 1-16, 1964. [doi:10.1016/0022-5193(64)90038-4](https://doi.org/10.1016/0022-5193(64)90038-4)
-- Hodgson, G. M., & Knudsen, T. "Why none of the 1,200 agents that hacked Hugging Face called a human". *Journal of Evolutionary Economics*, vol. 16, no. 5, pp. 477-489, 2006. [doi:10.1007/s00191-006-0024-6](https://doi.org/10.1007/s00191-006-0024-6)
-- Kleinberg, J., & Raghavan, M. "Why none of the 1,200 agents that hacked Hugging Face called a human". *Proceedings of the National Academy of Sciences*, vol. 118, no. 22, 2021. [doi:10.1073/pnas.2018340118](https://doi.org/10.1073/pnas.2018340118)
-- Stilgoe, J., Owen, R., & Macnaghten, P. "Why none of the 1,200 agents that hacked Hugging Face called a human". *Research Policy*, vol. 42, no. 9, pp. 1568-1580, 2013. [doi:10.1016/j.respol.2013.05.008](https://doi.org/10.1016/j.respol.2013.05.008)
+- Hamilton, W. "The genetical evolution of social behaviour. I". *Journal of Theoretical Biology*, vol. 7, no. 1, pp. 1-16, 1964. [doi:10.1016/0022-5193(64)90038-4](https://doi.org/10.1016/0022-5193(64)90038-4)
+- Hodgson, G. M., & Knudsen, T. "The nature and units of social selection". *Journal of Evolutionary Economics*, vol. 16, no. 5, pp. 477-489, 2006. [doi:10.1007/s00191-006-0024-6](https://doi.org/10.1007/s00191-006-0024-6)
+- Kleinberg, J., & Raghavan, M. "Algorithmic monoculture and social welfare". *Proceedings of the National Academy of Sciences*, vol. 118, no. 22, 2021. [doi:10.1073/pnas.2018340118](https://doi.org/10.1073/pnas.2018340118)
+- Stilgoe, J., Owen, R., & Macnaghten, P. "Developing a framework for responsible innovation". *Research Policy*, vol. 42, no. 9, pp. 1568-1580, 2013. [doi:10.1016/j.respol.2013.05.008](https://doi.org/10.1016/j.respol.2013.05.008)
