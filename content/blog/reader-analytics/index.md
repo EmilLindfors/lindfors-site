@@ -13,6 +13,7 @@ toc = true
 skip_audio = true
 featured_image = "hero.webp"
 changelog = [
+    { date = 2026-09-05, description = "A page view is now counted before the bar is answered, with nothing in it that could identify a reader, so the consented numbers have a denominator. The Inclusion paragraph and the loader section say what is sent and why." },
     { date = 2026-09-03, description = "Newsletter links now carry the per-issue parameter described under What comes next, and the queries file has the query that reads it." },
 ]
 
@@ -80,6 +81,8 @@ It was written for scientists and regulators, and a blog is a small thing to poi
 
 **Inclusion** is the hard one for a blog. I cannot ask readers before they arrive, but I can ask before I measure. The bar says what is collected and where it goes, *Allow* and *No thanks* are the same size, and until one of them is pressed the analytics script is not even downloaded. *No thanks* is remembered as well as *Allow*, and the *Analytics* link in the footer reopens the choice. Most readers will press nothing, so what I see is a sample of the people who agreed, on top of the sampling described below. For the question I have, whether a post got read, that is enough.
 
+That sample turned out to be small. Two days after the bar went up, the stream held four readers who were not me, on a day I had spent posting the swarm piece everywhere I could. So since 5 September the loader sends one thing before it asks: a ping with the page, the referrer and whether the bar has been answered before, and nothing else. No cookie, no storage, no id, so no two pings can be tied to one reader. It is the same class of record as a line in a server log, which a site on a static host does not otherwise have. It exists to be the denominator. Consented views divided by pings is the share of visits the analytics actually describe, and a second event when a button is pressed says how the bar is answered. OpenObserve stores the sender's address on every row it ingests, and for someone who never agreed that is the one field that should not be kept, so a pipeline on the stream drops it for these rows. The text on the bar says a view is counted either way.
+
 **Responsiveness** is the knob. Everything above is a setting, and the first thing the data did was change one of them.
 
 ## Keeping it
@@ -122,7 +125,7 @@ And it was already running. The same OpenObserve takes the host's logs and the [
 
 The SDK is 178 KB, 61 KB over the wire. The rest of this site's JavaScript is about 16 KB. So the SDK does not go in front of the page, and the whole design of the integration is about when it loads.
 
-The page loads only an 8 KB loader, which does nothing until the reader has pressed *Allow*, and then three things:
+The page loads only an 8 KB loader. It sends the ping, then does nothing until the reader has pressed *Allow*, and then three things:
 
 First, it samples. The roll happens before the SDK is fetched, so an unsampled visit costs nothing at all. The SDK's own sample rate is then pinned at 100, because two rates multiply.
 

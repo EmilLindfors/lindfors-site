@@ -86,7 +86,7 @@ newsletter_endpoint = "https://newsletter.lindfors.no/api/subscribe"
 # Default OG image (place a 1200x630 image at static/og-default.png)
 og_image = "/og-default.png"
 
-# Real user monitoring, sent to the self-hosted OpenObserve on logs.lindfors.no.
+# Real user monitoring, sent to the self-hosted OpenObserve through ingest.lindfors.no.
 # Absent or `enabled = false` ships no script at all, so this is off until an
 # application exists in OpenObserve (Management -> RUM) to fill the two ids in.
 #
@@ -97,7 +97,7 @@ og_image = "/og-default.png"
 # means adding it to connect-src in static/_headers too.
 [extra.rum]
 enabled = true
-site = "logs.lindfors.no"
+site = "ingest.lindfors.no"
 organization = "default"
 application_id = "lindfors-site"
 client_token = "rumS0CkqQm8C0TQ4jv4"

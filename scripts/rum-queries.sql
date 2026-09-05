@@ -1,4 +1,4 @@
--- Queries over the RUM stream in OpenObserve (logs.lindfors.no, stream `_rumdata`).
+-- Queries over the RUM stream in OpenObserve (OpenObserve behind ingest.lindfors.no, stream `_rumdata`).
 -- Paste into Logs -> SQL mode, or save each as a dashboard panel.
 --
 -- Why these exist: OpenObserve's Sessions page is hidden unless session replay is
@@ -90,3 +90,25 @@ FROM "_rumdata"
 WHERE type = 'view' AND view_url LIKE '%issue=%'
 GROUP BY issue, page
 ORDER BY issue, views DESC;
+
+-- 7. Coverage: every page load, from the pre-consent ping rum.js sends, beside the
+--    consented views that began as a page load. The ratio is how much of the traffic
+--    the rest of these queries describe. `consent` on a ping is the state the reader
+--    arrived in: none (the bar was shown), allow or deny (remembered from before).
+SELECT
+  histogram(_timestamp, '1 day') AS day,
+  count(CASE WHEN type = 'ping' THEN 1 END) AS loads,
+  count(DISTINCT CASE WHEN type = 'view' AND view_loading_type = 'initial_load' THEN view_id END) AS measured
+FROM "_rumdata"
+WHERE type IN ('ping', 'view')
+GROUP BY day
+ORDER BY day;
+
+-- 8. How the bar is answered. A `consent` event is one press; a ping with consent
+--    'none' is one showing of the bar.
+SELECT
+  consent AS choice,
+  count(*) AS presses
+FROM "_rumdata"
+WHERE type = 'consent'
+GROUP BY consent;

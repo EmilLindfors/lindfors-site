@@ -485,32 +485,100 @@ function renderWarnings(container, errors) {
 // ---------------------------------------------------------------------------
 
 const READER_SERIES = [
+    { key: "loads", label: "Page loads" },
     { key: "views", label: "Page views" },
     { key: "sessions", label: "Sessions" },
 ];
 
 /**
- * Daily `{day, views, sessions}` rows into the same Monday-start weeks the newsletter
- * chart uses, most recent week last, empty weeks present and zero. Pure.
+ * Daily `{day, views, sessions}` rows, and the ping's daily `{day, loads}` rows, into
+ * the same Monday-start weeks the newsletter chart uses, most recent week last, empty
+ * weeks present and zero. Pure.
  *
  * Sessions are distinct per day in the store and summed here, so a session that spans
  * midnight UTC counts twice in its week. On this site's numbers that is a rounding
  * error, and the alternative is a second query per week.
  */
-export function weeklyViews(daily, now, maxWeeks = MAX_WEEKS) {
+export function weeklyViews(daily, now, maxWeeks = MAX_WEEKS, pings = []) {
     const last = weekStartUTC(new Date(now).toISOString());
     const weeks = [];
     for (let i = maxWeeks - 1; i >= 0; i--) {
-        weeks.push({ week: addWeeks(last, -i), views: 0, sessions: 0 });
+        weeks.push({ week: addWeeks(last, -i), loads: 0, views: 0, sessions: 0 });
     }
+    const bucketFor = (row) => weeks.find((w) => w.week === weekStartUTC(row.day));
     for (const row of daily) {
-        const week = weekStartUTC(row.day);
-        const bucket = weeks.find((w) => w.week === week);
+        const bucket = bucketFor(row);
         if (!bucket) continue;
         bucket.views += Number(row.views) || 0;
         bucket.sessions += Number(row.sessions) || 0;
     }
+    for (const row of pings) {
+        const bucket = bucketFor(row);
+        if (!bucket) continue;
+        bucket.loads += Number(row.loads) || 0;
+    }
     return weeks;
+}
+
+/**
+ * What the consent bar is doing, from the ping and the `consent` events, over the
+ * rows dated on or after `sinceMs`. Pure.
+ *
+ * `loads` is every page load the ping saw. `measured` is the consented views that
+ * began as a page load, so `coverage` is the share of visits the analytics actually
+ * describe. `shown` is the loads by a reader with no remembered answer, which is how
+ * many times the bar was on screen; `allow` and `deny` are the presses, and `yes` is
+ * the share of presses that were Allow. Ratios are null until there is something to
+ * divide by, never zero: a bar nobody has seen has no rate.
+ */
+export function consentSummary(daily, pings, decisions, sinceMs) {
+    const recent = (rows) => rows.filter((row) => Date.parse(row.day) >= sinceMs);
+    const sum = (rows, key) => rows.reduce((total, row) => total + (Number(row[key]) || 0), 0);
+    const ratio = (part, whole) => (whole > 0 ? part / whole : null);
+
+    const loads = sum(recent(pings), "loads");
+    const remembered = sum(recent(pings), "allowed") + sum(recent(pings), "denied");
+    const measured = sum(recent(daily), "measured");
+    const presses = (choice) =>
+        decisions.filter((row) => row.choice === choice).reduce((total, row) => total + (Number(row.presses) || 0), 0);
+    const allow = presses("allow");
+    const deny = presses("deny");
+    return {
+        loads,
+        measured,
+        coverage: ratio(measured, loads),
+        shown: Math.max(0, loads - remembered),
+        allow,
+        deny,
+        yes: ratio(allow, allow + deny),
+    };
+}
+
+/**
+ * The pages table with the ping's per-page loads beside the consented views, joined
+ * on the URL, most loaded first. A page that only one of the two queries returned
+ * keeps zeros for the other, since both are top-20 lists. Pure.
+ */
+export function mergePageLoads(pages, pageLoads) {
+    const byUrl = new Map();
+    const row = (url) => {
+        if (!byUrl.has(url)) byUrl.set(url, { url, loads: 0, views: 0, sessions: 0 });
+        return byUrl.get(url);
+    };
+    for (const page of pages || []) {
+        const r = row(page.url);
+        r.views += Number(page.views) || 0;
+        r.sessions += Number(page.sessions) || 0;
+    }
+    for (const page of pageLoads || []) {
+        row(page.url).loads += Number(page.loads) || 0;
+    }
+    return [...byUrl.values()].sort((a, b) => b.loads - a.loads || b.views - a.views || a.url.localeCompare(b.url));
+}
+
+/** `0.1234` as `12%`; null as a dash. */
+export function percent(ratio) {
+    return ratio === null || ratio === undefined ? "—" : Math.round(ratio * 100) + "%";
 }
 
 /** Nanoseconds, as the SDK reports paint timings, to a whole number of milliseconds. */
@@ -589,21 +657,38 @@ function renderReaders(rum) {
     }
     section.hidden = false;
 
-    const weeks = weeklyViews(rum.daily || [], Date.now());
+    const weeks = weeklyViews(rum.daily || [], Date.now(), MAX_WEEKS, rum.pings || []);
     const sinceMs = Date.parse(rum.since + "T00:00:00Z");
     const recent = (rum.daily || []).filter((row) => Date.parse(row.day) >= sinceMs);
     const views = recent.reduce((sum, row) => sum + (Number(row.views) || 0), 0);
     const sessions = recent.reduce((sum, row) => sum + (Number(row.sessions) || 0), 0);
     const vitals = (rum.vitals || [])[0] || {};
+    const consent = consentSummary(rum.daily || [], rum.pings || [], rum.decisions || [], sinceMs);
 
     document.getElementById("readers-note").textContent =
-        "Only readers who allowed analytics, on top of the session sampling. Tables cover " +
-        "the 30 days since " + rum.since + "; the chart shows twelve weeks. A view is one page " +
-        "in one tab; a session is one browser for fifteen quiet minutes.";
+        "Page loads count every visit, from a ping with nothing in it but the page and the " +
+        "referrer. Everything else is only readers who allowed analytics, on top of the " +
+        "session sampling. Tables cover the 30 days since " + rum.since + "; the chart shows " +
+        "twelve weeks. A view is one page in one tab; a session is one browser for fifteen " +
+        "quiet minutes.";
 
     const lcp = nsToMs(vitals.lcp_p75);
     const tiles = document.getElementById("readers-tiles");
     tiles.replaceChildren(
+        tile("Page loads", consent.loads.toLocaleString(), "last 30 days, consent or not"),
+        tile(
+            "Measured",
+            percent(consent.coverage),
+            "of those loads had analytics allowed",
+        ),
+        tile(
+            "Said yes",
+            percent(consent.yes),
+            consent.allow + consent.deny === 0
+                ? "the bar has not been answered yet"
+                : consent.allow.toLocaleString() + " allow, " + consent.deny.toLocaleString() +
+                  " no thanks; shown " + consent.shown.toLocaleString() + " times",
+        ),
         tile("Page views", views.toLocaleString(), "last 30 days"),
         tile("Sessions", sessions.toLocaleString(), "last 30 days, summed by day"),
         tile(
@@ -625,14 +710,15 @@ function renderReaders(rum) {
         document.getElementById("readers-tooltip"),
         weeks,
         READER_SERIES,
-        "Weekly page views and sessions.",
+        "Weekly page loads, page views and sessions.",
     );
 
     renderRows(
         document.getElementById("readers-pages"),
-        rum.pages,
+        mergePageLoads(rum.pages, rum.page_loads),
         [
             { key: "url", label: "Page", link: true, text: displayPath },
+            { key: "loads", label: "Loads", num: true },
             { key: "views", label: "Views", num: true },
             { key: "sessions", label: "Sessions", num: true },
         ],

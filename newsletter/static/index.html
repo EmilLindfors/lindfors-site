@@ -235,11 +235,14 @@
         .bar--requested { fill: var(--series-requested); }
         .bar--confirmed { fill: var(--series-confirmed); }
         .bar--unsubscribed { fill: var(--series-unsubscribed); }
-        /* The readers chart reuses two of the three hues: it is never on screen next
-           to the newsletter chart's legend, and a fourth and fifth colour would be
-           two more things to tell apart for no reason. */
+        /* The readers chart reuses the newsletter chart's three hues: it is never on
+           screen next to that legend, and three more colours would be three more
+           things to tell apart for no reason. Loads take the muted hue, being the
+           envelope the other two sit inside. */
+        .bar--loads { fill: var(--series-unsubscribed); }
         .bar--views { fill: var(--series-confirmed); }
         .bar--sessions { fill: var(--series-requested); }
+        .swatch--loads { background: var(--series-unsubscribed); }
         .swatch--views { background: var(--series-confirmed); }
         .swatch--sessions { background: var(--series-requested); }
 
@@ -402,6 +405,7 @@
                 <div class="tiles tiles--compact" id="readers-tiles"></div>
 
                 <div class="legend">
+                    <span class="legend-item"><span class="legend-swatch swatch--loads"></span>Page loads</span>
                     <span class="legend-item"><span class="legend-swatch swatch--views"></span>Page views</span>
                     <span class="legend-item"><span class="legend-swatch swatch--sessions"></span>Sessions</span>
                 </div>

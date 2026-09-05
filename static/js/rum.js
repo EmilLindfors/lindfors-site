@@ -28,6 +28,10 @@
 // so a JSON blob in the page would be dropped silently. Nothing here is secret --
 // the client token is a write-only ingest key, readable in the page source either way.
 //
+// One thing does run before consent: a single page-view ping with no identifier in
+// it, so the consented numbers have a denominator. See "the count that needs no
+// consent" below.
+//
 // Externalised from base.html for CSP; see theme.js.
 (function () {
     var el = document.currentScript || document.querySelector('script[data-oo-rum]');
@@ -57,6 +61,32 @@
         ['_oo_s', '_oo_s_v2'].forEach(function (n) { document.cookie = n + '=; Max-Age=0; path=/'; });
     }
 
+    // --- the count that needs no consent ---------------------------------------
+    // One request per page load, sent before anything is asked: the page's URL, the
+    // referrer, and whether this reader has already answered the bar. No cookie, no
+    // storage write, no identifier of any kind, so nothing on the reader's device is
+    // touched and no two pings can be tied together; it is the same class of record as
+    // a line in a server log, which a site on a static host does not otherwise have.
+    // It exists to be the denominator: the consented views divided by this is how many
+    // readers the SDK is actually measuring, and the `consent` events below say how the
+    // bar is answered. OpenObserve adds country and browser family server-side and also
+    // the address; a pipeline on the stream drops the address for these rows.
+    //
+    // sendBeacon with a string body is a CORS-simple text/plain POST, no preflight,
+    // and survives the reader leaving before `load`, which is exactly the visit the
+    // SDK, initialised after `load`, never sees. The SDK posts its batches the same way.
+    var ingest = 'https://' + cfg.site + '/rum/v1/' + (cfg.organization || 'default') +
+        '/rum?o2-api-key=' + encodeURIComponent(cfg.clientToken);
+    var pageUrl = location.href.split('#')[0];
+    function send(record) {
+        var body = JSON.stringify(record);
+        try { if (navigator.sendBeacon && navigator.sendBeacon(ingest, body)) return; } catch (e) {}
+        try { fetch(ingest, { method: 'POST', body: body, keepalive: true, credentials: 'omit' }); } catch (e) {}
+    }
+
+    var consent = readConsent();
+    send({ type: 'ping', view_url: pageUrl, view_referrer: document.referrer, consent: consent || 'none' });
+
     if (bar) {
         bar.addEventListener('click', function (e) {
             var b = e.target && e.target.closest ? e.target.closest('[data-consent]') : null;
@@ -64,6 +94,7 @@
             var v = b.getAttribute('data-consent') === 'allow' ? 'allow' : 'deny';
             writeConsent(v);
             hideBar();
+            send({ type: 'consent', view_url: pageUrl, consent: v });
             if (v === 'allow') { start(); } else { clearSessionCookies(); }
         });
         var openers = document.querySelectorAll('[data-consent-open]');
@@ -72,7 +103,6 @@
         }
     }
 
-    var consent = readConsent();
     if (consent === 'allow') {
         start();
     } else if (consent === null) {

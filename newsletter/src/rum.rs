@@ -60,6 +60,14 @@ pub struct RumOverview {
     pub issues: Vec<Value>,
     /// One row: `{lcp_p75, fcp_p75, ttfb_p75, views}`, in nanoseconds as the SDK sends.
     pub vitals: Vec<Value>,
+    /// Daily `{day, loads, allowed, denied}` over `SERIES_DAYS` from the pre-consent
+    /// ping: every page load, and how many of them were by a reader who had already
+    /// pressed Allow or No thanks. The rest saw the bar.
+    pub pings: Vec<Value>,
+    /// `{choice, presses}`: how the bar was answered, from the `consent` event.
+    pub decisions: Vec<Value>,
+    /// `{url, loads}` from the ping, the denominator for the `pages` table.
+    pub page_loads: Vec<Value>,
 }
 
 #[derive(Serialize)]
@@ -155,12 +163,49 @@ const NOT_LOCAL: &str =
 pub mod sql {
     use super::{NOT_LOCAL, STREAM};
 
+    /// `measured` is the views that began as a page load in a consenting browser,
+    /// which is the figure comparable with the ping: a back-forward restore or a
+    /// renewed session is a view the SDK reports but a load the page never made.
     pub fn daily() -> String {
         format!(
             "SELECT histogram(_timestamp, '1 day') AS day, \
-             count(DISTINCT view_id) AS views, count(DISTINCT session_id) AS sessions \
+             count(DISTINCT view_id) AS views, count(DISTINCT session_id) AS sessions, \
+             count(DISTINCT CASE WHEN view_loading_type = 'initial_load' THEN view_id END) AS measured \
              FROM {STREAM} WHERE type = 'view' AND {NOT_LOCAL} \
              GROUP BY day ORDER BY day"
+        )
+    }
+
+    /// The pre-consent ping `rum.js` sends once per page load, with the consent state
+    /// the reader arrived in. `loads` is every visit the page saw, consent or not, and
+    /// the two counts split off the readers whose answer was already remembered; what
+    /// is left saw the bar.
+    pub fn pings() -> String {
+        format!(
+            "SELECT histogram(_timestamp, '1 day') AS day, count(*) AS loads, \
+             sum(CASE WHEN consent = 'allow' THEN 1 ELSE 0 END) AS allowed, \
+             sum(CASE WHEN consent = 'deny' THEN 1 ELSE 0 END) AS denied \
+             FROM {STREAM} WHERE type = 'ping' AND {NOT_LOCAL} \
+             GROUP BY day ORDER BY day"
+        )
+    }
+
+    /// A press on the bar, sent by `rum.js` as a `consent` event carrying the choice in
+    /// the same `consent` column the ping uses, so the stream grows no new field.
+    pub fn decisions() -> String {
+        format!(
+            "SELECT consent AS choice, count(*) AS presses \
+             FROM {STREAM} WHERE type = 'consent' AND {NOT_LOCAL} \
+             GROUP BY consent ORDER BY presses DESC"
+        )
+    }
+
+    /// Page loads per page from the ping, grouped like `pages` so the two join on `url`.
+    pub fn page_loads() -> String {
+        format!(
+            "SELECT regexp_replace(view_url, '\\?.*$', '') AS url, count(*) AS loads \
+             FROM {STREAM} WHERE type = 'ping' AND {NOT_LOCAL} \
+             GROUP BY url ORDER BY loads DESC LIMIT 20"
         )
     }
 
@@ -252,8 +297,11 @@ pub async fn overview(
         sql::countries(),
         sql::vitals(),
         sql::issues(),
+        sql::pings(),
+        sql::decisions(),
+        sql::page_loads(),
     );
-    let (daily, pages, referrers, links, countries, vitals, issues) = tokio::join!(
+    let (daily, pages, referrers, links, countries, vitals, issues, pings, decisions, page_loads) = tokio::join!(
         search(client, config, &queries.0, SERIES_DAYS, 200),
         search(client, config, &queries.1, TABLE_DAYS, 20),
         search(client, config, &queries.2, TABLE_DAYS, 20),
@@ -261,6 +309,9 @@ pub async fn overview(
         search(client, config, &queries.4, TABLE_DAYS, 10),
         search(client, config, &queries.5, TABLE_DAYS, 1),
         search(client, config, &queries.6, TABLE_DAYS, 20),
+        search(client, config, &queries.7, SERIES_DAYS, 200),
+        search(client, config, &queries.8, TABLE_DAYS, 5),
+        search(client, config, &queries.9, TABLE_DAYS, 20),
     );
 
     let mut take = |name: &str, result: Result<Vec<Value>, String>| match result {
@@ -281,6 +332,9 @@ pub async fn overview(
         countries: take("countries", countries),
         vitals: take("vitals", vitals),
         issues: take("issues", issues),
+        pings: take("pings", pings),
+        decisions: take("decisions", decisions),
+        page_loads: take("page loads", page_loads),
     }
 }
 
@@ -316,6 +370,22 @@ mod tests {
         assert!(issues.contains("issue=([^&#]+).*$', '\\1') AS issue"), "{issues}");
         assert!(issues.contains("view_url LIKE '%issue=%'"));
         assert!(issues.contains("GROUP BY issue"));
+    }
+
+    /// The ping and the decision share one column, `consent`, and the per-page loads
+    /// strip the query string the same way `pages` does so the two join on the URL.
+    #[test]
+    fn the_ping_queries_read_the_ping_rows_and_join_on_the_page() {
+        let pings = sql::pings();
+        assert!(pings.contains("type = 'ping'"), "{pings}");
+        assert!(pings.contains("consent = 'allow'") && pings.contains("consent = 'deny'"), "{pings}");
+        let decisions = sql::decisions();
+        assert!(decisions.contains("type = 'consent'"), "{decisions}");
+        assert!(decisions.contains("consent AS choice"), "{decisions}");
+        let loads = sql::page_loads();
+        assert!(loads.contains("type = 'ping'"), "{loads}");
+        assert!(loads.contains("regexp_replace(view_url, '\\?.*$', '') AS url"), "{loads}");
+        assert!(sql::daily().contains("view_loading_type = 'initial_load'"));
     }
 
     #[test]
@@ -355,6 +425,10 @@ mod tests {
             sql::links(),
             sql::countries(),
             sql::vitals(),
+            sql::issues(),
+            sql::pings(),
+            sql::decisions(),
+            sql::page_loads(),
         ] {
             assert!(q.contains("FROM \"_rumdata\""), "{q}");
             assert!(!q.contains("session_id,"), "no per-session listing: {q}");
