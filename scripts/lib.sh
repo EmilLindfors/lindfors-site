@@ -60,13 +60,55 @@ run_zola() {
     fi
 }
 
+# Where the site-tools crate lives, which is no longer necessarily in this repo.
+#
+# The generators are moving out: this repo is what Cloudflare builds, and the tools are
+# what produce the committed files it serves. Nothing here needs to know where they
+# ended up, so the location is resolved rather than hardcoded, in this order:
+#
+#   SITE_TOOLS_BIN  a built binary, used as-is and never rebuilt (the box sets this)
+#   SITE_TOOLS_DIR  the crate directory, built from source
+#   tools/site-tools in this repo, while it is still here
+#
+# Same shape as `site-tools schedule` finding the queue: an environment override, then
+# a conventional path. Prints the crate directory on success.
+site_tools_dir() {
+    local root="$1" dir
+
+    if [ -n "$SITE_TOOLS_DIR" ]; then
+        echo "$SITE_TOOLS_DIR"
+        return 0
+    fi
+
+    for dir in "$root/tools/site-tools"; do
+        [ -f "$dir/Cargo.toml" ] && { echo "$dir"; return 0; }
+    done
+
+    echo "Error: cannot find the site-tools crate. Set SITE_TOOLS_DIR, or" >&2
+    echo "       SITE_TOOLS_BIN to point straight at a built binary." >&2
+    return 1
+}
+
 # Path to the site-tools binary, building it first if it isn't there.
 #
 # site-tools owns citation processing, PDF generation and the newsletter; the shell
 # scripts that used to do those jobs are gone. Echoes the path on success.
 site_tools_bin() {
     local root="$1"
-    local dir="$root/tools/site-tools"
+
+    # A binary handed to us is used as it is: the box deploys one built by CI and has
+    # no cargo, so building from source there is not an option.
+    if [ -n "$SITE_TOOLS_BIN" ]; then
+        if [ ! -x "$SITE_TOOLS_BIN" ]; then
+            echo "Error: SITE_TOOLS_BIN=$SITE_TOOLS_BIN is not an executable file." >&2
+            return 1
+        fi
+        echo "$SITE_TOOLS_BIN"
+        return 0
+    fi
+
+    local dir
+    dir="$(site_tools_dir "$root")" || return 1
     local bin="$dir/target/release/site-tools"
     [ -f "$bin.exe" ] && bin="$bin.exe"
 
