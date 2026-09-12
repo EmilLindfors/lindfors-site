@@ -2,7 +2,8 @@
 # Build script for lindfors-site
 # Processes citations, regenerates PDFs, and builds the Zola site.
 #
-# The heavy lifting lives in tools/site-tools (Rust); this script is orchestration.
+# The heavy lifting lives in the site-tools repository (Rust), checked out beside this
+# one or named by SITE_TOOLS_DIR / SITE_TOOLS_BIN; this script is orchestration.
 # This is the single definition of a build -- deploy.sh runs it and then pushes.
 # SKIP_PDFS=1 builds the site without touching the CV or post PDFs.
 # SKIP_IMAGE_CHECK=1 builds with an unconverted image still under content/.
