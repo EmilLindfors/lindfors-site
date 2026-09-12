@@ -13,6 +13,7 @@ featured_image = "hero.webp"
 skip_audio = true
 toc = true
 changelog = [
+    { date = 2026-09-12, description = "The build tooling has moved to its own repository; the link to the PDF generator points there now." },
     { date = 2026-08-28, description = "Dropped the hand-maintained series footer; the series banner at the top of the post replaces it." },
     { date = 2026-08-11, description = "PDF generation moved from shell scripts to the site-tools Rust CLI." },
 ]
@@ -369,4 +370,4 @@ None of these are blockers. The output quality is excellent and the developer ex
 | Heading font | [Inter](https://rsms.me/inter/) (sans-serif) |
 | Code font | JetBrains Mono |
 
-The blog post template, CV source, and build tooling are all in the [site repo](https://github.com/emillindfors/lindfors-site). If you're using Zola (or any static site generator) and want auto-generated PDFs, `tools/site-tools/src/pdf.rs` is the piece to look at -- it's generic enough to adapt.
+The blog post template and CV source are in the [site repo](https://github.com/emillindfors/lindfors-site); the build tooling has a repository of its own, [site-tools](https://github.com/EmilLindfors/site-tools). If you're using Zola (or any static site generator) and want auto-generated PDFs, `crates/site-tools/src/pdf.rs` is the piece to look at -- it's generic enough to adapt.

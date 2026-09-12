@@ -12,6 +12,9 @@ series = ["The infrastructure behind this blog"]
 toc = true
 skip_audio = true
 featured_image = "hero.webp"
+changelog = [
+    { date = 2026-09-12, description = "The service is no longer in the public site repo, so the link to its source is gone." },
+]
 
 [extra.bib]
 Pearce2022 = "10.1109/SP46214.2022.9833571"
@@ -202,4 +205,4 @@ The weekly send is half built. A job on the box now publishes one queued post a 
 
 Bounce handling is still the open item it was in February. An address that hard-bounces stays on the list, and the send report has the raw material for the rule I have not written.
 
-The code is [on GitHub](https://github.com/emillindfors/lindfors-site) under `newsletter/`, with a README that argues the case at more length than this. If you run a static site with a Worker-shaped newsletter and a VPS with nothing on it, the move is one day, and the day is mostly nginx.
+The code moved into a private repo with the rest of what runs on the box. If you run a static site with a Worker-shaped newsletter and a VPS with nothing on it, the move is one day, and the day is mostly nginx.

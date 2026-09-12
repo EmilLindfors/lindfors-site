@@ -13,6 +13,7 @@ featured_image = "hero.webp"
 skip_audio = true
 toc = true
 changelog = [
+    { date = 2026-09-12, description = "The successor service is no longer in the public site repo, so the link to its source is gone." },
     { date = 2026-09-04, description = "The Worker this post describes was replaced on 2026-09-03 by a service on the mail server; the per-reader URL, the DKIM tag and the one-message-per-recipient design carried over unchanged. The 45-recipient ceiling and the to-do list at the end are marked as history." },
     { date = 2026-09-02, description = "Rewritten. New title and opening, and a checklist at the end. The findings, the numbers and the code are unchanged." },
 ]
@@ -183,4 +184,4 @@ If you are running a small list through your own mail server, the checklist from
 4. Set the system hostname, so `Message-ID` is not `@localhost`.
 5. Do not chase the Ed25519 `neutral`.
 
-The Worker is gone; its successor is [on GitHub](https://github.com/emillindfors/lindfors-site) under `newsletter/`, and the per-reader URL and the DKIM tag are still exactly as described here. [The move](/blog/newsletter-on-my-own-server/) has its own post.
+The Worker is gone; its successor runs on my own box and is in a private repo now, and the per-reader URL and the DKIM tag are still exactly as described here. [The move](/blog/newsletter-on-my-own-server/) has its own post.

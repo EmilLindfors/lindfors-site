@@ -180,7 +180,7 @@ The Worker is gone from this site, but these cost me time and are still true on 
 
 **Measure your rate limiter.** I sent 18 sequential requests through a 15-per-minute limit and got zero 429s. The description said otherwise.
 
-The service that replaced the Worker is [on GitHub](https://github.com/emillindfors/lindfors-site) under `newsletter/`, [the move is written up](https://lindfors.no/blog/newsletter-on-my-own-server/), and the box at the bottom of this page is the live system. If your company wants off Microsoft or Google and needs someone who has done it, write to me.
+The service that replaced the Worker moved into a private repo with the rest of what runs on that box, [the move is written up](https://lindfors.no/blog/newsletter-on-my-own-server/), and the box at the bottom of this page is the live system. If your company wants off Microsoft or Google and needs someone who has done it, write to me.
 
 ## References
 

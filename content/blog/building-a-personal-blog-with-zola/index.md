@@ -12,6 +12,7 @@ featured = true
 toc = true
 featured_image = "hero.webp"
 changelog = [
+    { date = 2026-09-12, description = "The newsletter service and the site-tools CLI are no longer in this repo; the tree and the closing paragraph say where they went." },
     { date = 2026-09-04, description = "The newsletter API and the subscriber dashboard are one service on the mail server since 2026-09-03; the repo tree, the tooling table and the components table say so. The prediction near the end about running the site on my own server came true faster than expected." },
     { date = 2026-09-02, description = "Brought up to date: the markdown copies and content negotiation, the audio pipeline, the CSP, the docker fallback on Windows, the admin dashboard and the Tera v2 migration. New title. Adds the path-dependence reading (Sydow, Schreyögg & Koch 2009) and a fourth thing I would do differently." },
     { date = 2026-08-11, description = "Updated for Zola 0.23 and the move from shell scripts to the site-tools Rust CLI." },
@@ -88,7 +89,7 @@ In February that pre-processing was a handful of shell scripts. Since August it 
 
 ## The tool that grew instead
 
-`site-tools` lives in `tools/site-tools/`, about 6,500 lines of Rust in fifteen files, and it owns every generated file in the repo:
+`site-tools` is about 6,500 lines of Rust in fifteen files, and it owns every generated file in the repo. It has its own repository now, [site-tools](https://github.com/EmilLindfors/site-tools); it lived here in `tools/site-tools/` when this post was written:
 
 | Subcommand | Writes | Needs |
 |---|---|---|
@@ -162,9 +163,7 @@ lindfors-site/
 │   ├── llms.txt                   # generated
 │   └── _headers                   # security headers and the CSP
 ├── functions/blog/_middleware.js  # Pages Function: Accept: text/markdown -> the .md
-├── newsletter/                    # axum service on the mail server: subscribe, send, dashboard
-├── tools/site-tools/              # the Rust CLI
-├── tools/img-optim/               # image conversion to WebP, run by hand
+├── tests/middleware.test.mjs      # the Pages Function's tests
 ├── scripts/lib.sh                 # run_zola, the preflights, the docker fallback
 ├── cv.typ
 ├── build.sh                       # the one definition of a build
@@ -172,7 +171,7 @@ lindfors-site/
 └── zola.toml
 ```
 
-The blog, the templates, the styles, the newsletter service, the CLI, the build script and the CV source are one repo. Everything except the newsletter service deploys from a push; that one is a binary copied to the mail server.
+The blog, the templates, the styles, the build script and the CV source are one repo, and all of it deploys from a push. The newsletter service and the CLI have since moved out to repositories of their own: the service is a binary copied to the mail server, and the CLI writes the generated files above before they are committed.
 
 ## Typography
 

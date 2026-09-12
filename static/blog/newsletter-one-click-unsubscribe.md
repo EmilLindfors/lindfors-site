@@ -173,4 +173,4 @@ If you are running a small list through your own mail server, the checklist from
 4. Set the system hostname, so `Message-ID` is not `@localhost`.
 5. Do not chase the Ed25519 `neutral`.
 
-The Worker is gone; its successor is [on GitHub](https://github.com/emillindfors/lindfors-site) under `newsletter/`, and the per-reader URL and the DKIM tag are still exactly as described here. [The move](https://lindfors.no/blog/newsletter-on-my-own-server/) has its own post.
+The Worker is gone; its successor runs on my own box and is in a private repo now, and the per-reader URL and the DKIM tag are still exactly as described here. [The move](https://lindfors.no/blog/newsletter-on-my-own-server/) has its own post.
