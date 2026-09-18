@@ -31,42 +31,13 @@ jobs:
           args: --no-progress public/
           fail: false
 
-  test-tools:
+  # The generators moved to github.com/EmilLindfors/site-tools on 2026-09-12 and are
+  # tested by that repository's own CI. What is left here is the one piece of code the
+  # site itself ships: the Pages Function that content-negotiates /blog/*.
+  test-middleware:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            tools/site-tools/target
-            tools/img-optim/target
-          key: ${{ runner.os }}-tools-${{ hashFiles('tools/*/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-tools-
-
-      - name: Test site-tools
-        working-directory: tools/site-tools
-        run: cargo test
-
-      # The publisher on mail.lindfors.no is this crate without `cite`, the one feature
-      # that pulls in C. Built here so a dependency added to the wrong side of the
-      # feature line fails in CI and not on the box's next cross-compile.
-      - name: Check the publisher build (no default features)
-        working-directory: tools/site-tools
-        run: cargo build --no-default-features
-
-      # img-optim is run by hand when an image is added to a post, so nothing in a
-      # build calls it. Without this it is the one crate here that can stop compiling
-      # without anyone noticing until the next time an image needs converting.
-      - name: Test img-optim
-        working-directory: tools/img-optim
-        run: cargo test
 
       # 22 or newer: the middleware is plain .js with ESM syntax, and Node only
       # detects that without a "type": "module" from 22.7 on. A package.json in
@@ -76,4 +47,4 @@ jobs:
           node-version: "22"
 
       - name: Test blog content negotiation
-        run: node --test tools/tests/middleware.test.mjs
+        run: node --test tests/middleware.test.mjs

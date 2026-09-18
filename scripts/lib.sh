@@ -60,14 +60,58 @@ run_zola() {
     fi
 }
 
+# Where the site-tools crate lives, which is no longer necessarily in this repo.
+#
+# The generators are moving out: this repo is what Cloudflare builds, and the tools are
+# what produce the committed files it serves. Nothing here needs to know where they
+# ended up, so the location is resolved rather than hardcoded, in this order:
+#
+#   SITE_TOOLS_BIN  a built binary, used as-is and never rebuilt (the box sets this)
+#   SITE_TOOLS_DIR  the crate directory, built from source
+#   ../site-tools   the repository checked out beside this one
+#
+# Same shape as `site-tools schedule` finding the queue: an environment override, then
+# a conventional path. Prints the crate directory on success.
+site_tools_dir() {
+    local root="$1" dir
+
+    if [ -n "$SITE_TOOLS_DIR" ]; then
+        echo "$SITE_TOOLS_DIR"
+        return 0
+    fi
+
+    for dir in "$(dirname "$root")/site-tools/crates/site-tools"; do
+        [ -f "$dir/Cargo.toml" ] && { echo "$dir"; return 0; }
+    done
+
+    echo "Error: cannot find the site-tools crate. It lives in its own repository now:" >&2
+    echo "         git clone https://github.com/EmilLindfors/site-tools $(dirname "$root")/site-tools" >&2
+    echo "       Or set SITE_TOOLS_DIR, or SITE_TOOLS_BIN to a built binary." >&2
+    return 1
+}
+
 # Path to the site-tools binary, building it first if it isn't there.
 #
 # site-tools owns citation processing, PDF generation and the newsletter; the shell
 # scripts that used to do those jobs are gone. Echoes the path on success.
 site_tools_bin() {
     local root="$1"
-    local dir="$root/tools/site-tools"
-    local bin="$dir/target/release/site-tools"
+
+    # A binary handed to us is used as it is: the box deploys one built by CI and has
+    # no cargo, so building from source there is not an option.
+    if [ -n "$SITE_TOOLS_BIN" ]; then
+        if [ ! -x "$SITE_TOOLS_BIN" ]; then
+            echo "Error: SITE_TOOLS_BIN=$SITE_TOOLS_BIN is not an executable file." >&2
+            return 1
+        fi
+        echo "$SITE_TOOLS_BIN"
+        return 0
+    fi
+
+    local dir
+    dir="$(site_tools_dir "$root")" || return 1
+    # A workspace shares one target/ at its root, which is two levels above the crate.
+    local bin="$dir/../../target/release/site-tools"
     [ -f "$bin.exe" ] && bin="$bin.exe"
 
     # Build whenever cargo is available, not just when the binary is missing. cargo
@@ -75,8 +119,9 @@ site_tools_bin() {
     # check meant a stale binary silently outlived every source edit -- a new
     # subcommand would fail as "Unknown command" mid-build.
     if command -v cargo >/dev/null 2>&1; then
-        (cd "$dir" && cargo build --release >&2) || return 1
-        bin="$dir/target/release/site-tools"
+        # -p, so a build for the site never drags in img-optim and its C dependency.
+        (cd "$dir" && cargo build --release -p site-tools >&2) || return 1
+        bin="$dir/../../target/release/site-tools"
         [ -f "$bin.exe" ] && bin="$bin.exe"
     elif [ ! -f "$bin" ]; then
         echo "Error: site-tools is not built and cargo is not installed." >&2
@@ -126,8 +171,8 @@ audio_ready() {
 
 # Refuse to build with an unconverted image sitting in content/.
 #
-# Images are co-located with their post and committed as WebP; `tools/img-optim`
-# converts the source and the source is then deleted. Nothing in a build calls it,
+# Images are co-located with their post and committed as WebP; `img-optim`, in the
+# site-tools repository, converts the source and the source is then deleted. Nothing in a build calls it,
 # because by the time a build runs the conversion has already happened -- which means
 # a forgotten source has nothing to stop it, and `deploy.sh` runs `git add -A`. A 4 MB
 # DSLR photo is in the history for good once that happens.
@@ -143,8 +188,8 @@ preflight_images() {
     echo "Error: unconverted images under content/:" >&2
     echo "$found" | sed 's/^/       /' >&2
     echo "       Convert them, then delete the sources:" >&2
-    echo "         cd tools/img-optim && cargo build --release" >&2
-    echo "         ./tools/img-optim/target/release/img-optim -t <path>" >&2
+    echo "         cargo build --release -p img-optim   # in the site-tools repo" >&2
+    echo "         <site-tools>/target/release/img-optim -t <path>" >&2
     echo "       (or re-run with SKIP_IMAGE_CHECK=1)" >&2
     return 1
 }

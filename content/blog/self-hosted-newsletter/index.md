@@ -13,6 +13,7 @@ featured_image = "hero.webp"
 skip_audio = true
 toc = true
 changelog = [
+    { date = 2026-09-12, description = "The newsletter service is no longer in the public site repo, so the link to its source is gone." },
     { date = 2026-09-04, description = "The Worker, the mailing list and the WebDAV logs described here were replaced on 2026-09-03 by one service on the mail server with Postgres behind it; see the follow-up post. The DNS, Stalwart and deliverability sections are unchanged and still current." },
     { date = 2026-09-02, description = "Rewritten against the system as it runs today: a JMAP MailingList object, double opt-in, one message per reader, the send and event logs on WebDAV, and the DNS records the mail side needs. New title. Adds the local buzz and global pipelines lens from Bathelt, Malmberg & Maskell." },
     { date = 2026-08-28, description = "Dropped the hand-maintained series footer; the series banner at the top of the post replaces it." },
@@ -221,4 +222,4 @@ The Worker is gone from this site, but these cost me time and are still true on 
 
 **Measure your rate limiter.** I sent 18 sequential requests through a 15-per-minute limit and got zero 429s. The description said otherwise.
 
-The service that replaced the Worker is [on GitHub](https://github.com/emillindfors/lindfors-site) under `newsletter/`, [the move is written up](/blog/newsletter-on-my-own-server/), and the box at the bottom of this page is the live system. If your company wants off Microsoft or Google and needs someone who has done it, write to me.
+The service that replaced the Worker moved into a private repo with the rest of what runs on that box, [the move is written up](/blog/newsletter-on-my-own-server/), and the box at the bottom of this page is the live system. If your company wants off Microsoft or Google and needs someone who has done it, write to me.

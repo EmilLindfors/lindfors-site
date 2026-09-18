@@ -1,5 +1,5 @@
 // Tests for the blog content-negotiation middleware.
-// Run with: node --test tools/tests/
+// Run with: node --test tests/
 //
 // Lives outside functions/ because every file under that directory is treated as a
 // route by Cloudflare Pages.
@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { prefersMarkdown, markdownPathFor } from "../../functions/blog/_middleware.js";
+import { prefersMarkdown, markdownPathFor } from "../functions/blog/_middleware.js";
 
 // The Accept string Chrome and Firefox actually send.
 const BROWSER =
