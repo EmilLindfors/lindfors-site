@@ -1,10 +1,34 @@
----
-title: "Citations by DOI, and the warning I read past for a month"
-date: "2026-09-29"
-description: "A reference manager moved its database, a build script swallowed the error, and every build for a month reported success. Rebuilding the pipeline around DOIs and crossref, and why Zotero stays as the other half."
-url: "https://lindfors.no/blog/citations-without-zotero/?issue=citations-without-zotero"
----
++++
+title = "Citations by DOI, and the warning I read past for a month"
+description = "A reference manager moved its database, a build script swallowed the error, and every build for a month reported success. Rebuilding the pipeline around DOIs and crossref, and why Zotero stays as the other half."
+date = 2026-09-29
+[taxonomies]
+tags = ["rust", "zotero", "crossref", "writing", "zola"]
+categories = ["programming"]
+series = ["Citations on a blog"]
 
+[extra]
+featured_image = "hero.webp"
+skip_audio = true
+toc = true
+changelog = [
+    { date = 2026-09-02, description = "Rewritten. New title and opening, and advice at the end. The findings, the snags and the code are unchanged; one key count corrected to 1,421. The CSL lookup in the last section now exists as `cite format`." },
+]
+
+[extra.bib]
+Christiansen2017 = "10.1016/j.marpol.2016.10.020"
+
+[[extra.references]]
+key = "Christiansen2017"
+type = "article"
+author = "Christiansen, E. A., & Jakobsen, S. E."
+title = "Diversity in narratives to green the Norwegian salmon farming industry"
+year = "2017"
+journal = "Marine Policy"
+volume = "75"
+pages = "156-164"
+doi = "10.1016/j.marpol.2016.10.020"
++++
 
 A DOI is a string. `10.1016/j.marpol.2016.10.020` is one, and the thing that turns it into a reference is an HTTP request. The citations on this site used to need a desktop application for that, and for a month this summer they needed nothing at all, because the pipeline was dead and the build was hiding it. Line 26 of `build.sh`:
 
@@ -43,7 +67,7 @@ So the fix is smaller than the problem looked. `site-tools` reads `zotero.sqlite
 
 ## The Zotero dependency
 
-[Part one](https://lindfors.no/blog/citations-on-a-static-site/?issue=citations-without-zotero) describes a pipeline that reads citation keys out of Zotero's SQLite database at build time. I still think that design is right for what it is. But look at what it needs: a desktop application, installed on a particular machine, with a particular plugin, keeping a database at a particular path, in a schema neither of us controls.
+[Part one](/blog/citations-on-a-static-site/) describes a pipeline that reads citation keys out of Zotero's SQLite database at build time. I still think that design is right for what it is. But look at what it needs: a desktop application, installed on a particular machine, with a particular plugin, keeping a database at a particular path, in a schema neither of us controls.
 
 For a static site whose whole premise is text files in a git repo, that is a strange thing to require. I can rebuild this site from a clone on any machine. Except the citations, which only work on the laptop with Zotero on it.
 
@@ -90,7 +114,7 @@ The obvious way to support two sources is a config setting. I didn't want one, b
 
 The marker's shape picks the source instead. A DOI, or a key the post's `[extra.bib]` maps to one, goes to crossref. A key with no entry there falls back to the Zotero library, exactly as before. A site that only ever writes DOIs never opens a Zotero database, and someone who prefers their collection carries on writing citekeys and never touches the network. There's a `--source crossref|zotero|auto` flag for when the routing guesses wrong, and I have not needed it yet.
 
-This matters more than the tidiness of it. The journal literature I cite here is exactly what crossref is good at: Christiansen & Jakobsen (2017) on how the Norwegian salmon industry narrates its own greening resolves from a DOI in about a second. Books, technical reports, standards and most of the grey literature I work from in aquaculture have no DOI at all. Crossref covers journal articles superbly and everything else patchily. Zotero is the half that handles what crossref can't.
+This matters more than the tidiness of it. The journal literature I cite here is exactly what crossref is good at: Christiansen & Jakobsen (<a href="#ref-Christiansen2017">2017</a>) on how the Norwegian salmon industry narrates its own greening resolves from a DOI in about a second. Books, technical reports, standards and most of the grey literature I work from in aquaculture have no DOI at all. Crossref covers journal articles superbly and everything else patchily. Zotero is the half that handles what crossref can't.
 
 ## Where the references live
 
@@ -119,7 +143,7 @@ Storing the record in the post is what makes the thing offline. After the first 
 
 **Zola failed the build on my own anchors.** An inline citation links to its entry: `[2017](#ref-Christiansen2017)`. Zola resolves that fragment against the page's own content and errors if it can't find the target. The reference list is now rendered by a template from frontmatter, so its `id` attributes are not in `page.content`, and every citation in the post became a broken internal link as far as the build was concerned.
 
-The fix is to write the anchor as raw HTML, `2017`, which passes through unchecked. That is a grubby thing to have in a markdown source and I went looking for a better answer before accepting it. Nothing is lost by the check going away, because a marker is only ever rewritten once its reference has been stored, so the target exists by construction. It did mean the PDF, the plain-markdown representation and the text-to-speech script all had to learn to strip an HTML anchor instead of a markdown link.
+The fix is to write the anchor as raw HTML, `<a href="#ref-Christiansen2017">2017</a>`, which passes through unchecked. That is a grubby thing to have in a markdown source and I went looking for a better answer before accepting it. Nothing is lost by the check going away, because a marker is only ever rewritten once its reference has been stored, so the target exists by construction. It did mean the PDF, the plain-markdown representation and the text-to-speech script all had to learn to strip an HTML anchor instead of a markdown link.
 
 **Crossref returns titles as XML fragments.** `Aquaculture Economics &amp; Management`. Also `<i>Salmo salar</i>` where a publisher used markup in a title. The templates escape what they render, so an `&amp;` left in place renders as the five characters `&amp;` on the page. Entities have to be decoded and tags stripped before storing, tags first, or a `&lt;` decoded early gets read as the start of a tag on the next pass.
 
@@ -146,11 +170,3 @@ The reference formatting is still hardcoded in Tera components. That was on the 
 And the two sources disagree in small ways I haven't decided about. Crossref gives Christiansen and Jakobsen no issue number at all; Zotero has `October 2016` sitting in the issue field for the same paper. Neither is wrong, and both come from whatever the publisher deposited. But a post citing one source through crossref and another through Zotero ends up with a reference list assembled to two slightly different sets of rules, and I don't know yet whether that will bother me enough to normalise it.
 
 If you want to try this on your own site, the client is [on GitHub](https://github.com/EmilLindfors/crossref-client). Write DOIs in brackets, give a name in `[extra.bib]` to anything you cite more than once, and read your build output for the word Warning.
-
-## References
-
-- Christiansen, E. A., & Jakobsen, S. E. "Diversity in narratives to green the Norwegian salmon farming industry". *Marine Policy*, vol. 75, pp. 156-164, 2017. [doi:10.1016/j.marpol.2016.10.020](https://doi.org/10.1016/j.marpol.2016.10.020)
-
----
-
-*[Read the full post on the site](https://lindfors.no/blog/citations-without-zotero/?issue=citations-without-zotero) for math equations, citations, and interactive features.*

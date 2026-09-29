@@ -1,10 +1,13 @@
 ---
 title: "Citations by DOI, and the warning I read past for a month"
-date: "2026-09-29"
 description: "A reference manager moved its database, a build script swallowed the error, and every build for a month reported success. Rebuilding the pipeline around DOIs and crossref, and why Zotero stays as the other half."
-url: "https://lindfors.no/blog/citations-without-zotero/?issue=citations-without-zotero"
+date: 2026-09-29
+tags: ["rust", "zotero", "crossref", "writing", "zola"]
+author: "Emil Lindfors"
+canonical: https://lindfors.no/blog/citations-without-zotero/
 ---
 
+# Citations by DOI, and the warning I read past for a month
 
 A DOI is a string. `10.1016/j.marpol.2016.10.020` is one, and the thing that turns it into a reference is an HTTP request. The citations on this site used to need a desktop application for that, and for a month this summer they needed nothing at all, because the pipeline was dead and the build was hiding it. Line 26 of `build.sh`:
 
@@ -16,7 +19,6 @@ That line printed its warning on every build for a month, one line in the middle
 
 The warning was telling the truth. Here is what it was hiding, and what the pipeline looks like now that it runs on DOIs.
 
-<!-- more -->
 
 ## What actually broke
 
@@ -43,7 +45,7 @@ So the fix is smaller than the problem looked. `site-tools` reads `zotero.sqlite
 
 ## The Zotero dependency
 
-[Part one](https://lindfors.no/blog/citations-on-a-static-site/?issue=citations-without-zotero) describes a pipeline that reads citation keys out of Zotero's SQLite database at build time. I still think that design is right for what it is. But look at what it needs: a desktop application, installed on a particular machine, with a particular plugin, keeping a database at a particular path, in a schema neither of us controls.
+[Part one](https://lindfors.no/blog/citations-on-a-static-site/) describes a pipeline that reads citation keys out of Zotero's SQLite database at build time. I still think that design is right for what it is. But look at what it needs: a desktop application, installed on a particular machine, with a particular plugin, keeping a database at a particular path, in a schema neither of us controls.
 
 For a static site whose whole premise is text files in a git repo, that is a strange thing to require. I can rebuild this site from a clone on any machine. Except the citations, which only work on the laptop with Zotero on it.
 
@@ -150,7 +152,3 @@ If you want to try this on your own site, the client is [on GitHub](https://gith
 ## References
 
 - Christiansen, E. A., & Jakobsen, S. E. "Diversity in narratives to green the Norwegian salmon farming industry". *Marine Policy*, vol. 75, pp. 156-164, 2017. [doi:10.1016/j.marpol.2016.10.020](https://doi.org/10.1016/j.marpol.2016.10.020)
-
----
-
-*[Read the full post on the site](https://lindfors.no/blog/citations-without-zotero/?issue=citations-without-zotero) for math equations, citations, and interactive features.*
