@@ -24,7 +24,7 @@ There are three reasonable places to put images on a static site deployed to Clo
 
 ## Why git
 
-Everything on this site is one repo. The fonts are self-hosted, the newsletter service is checked in beside the templates, and the PDF pipeline reads the same markdown. A second deployment target for images would have been the first thing that lived somewhere else.
+Everything the site serves comes from one repo. The fonts are self-hosted, the PDFs and share cards are committed beside the templates, and the PDF pipeline reads the same markdown. A second deployment target for images would have been the first thing that lived somewhere else.
 
 The practical question is whether git can carry it. For a blog, easily.
 
@@ -75,7 +75,7 @@ One thing to note here. The `image` crate's default features include a pure-Rust
 
 ### The core logic
 
-The interesting part is three functions, about 150 lines with the argument parsing:
+The interesting part is three functions. With the argument parsing they are about 150 of the tool's 325 lines:
 
 ```rust
 fn resize_to_width(img: image::DynamicImage, max_width: u32) -> image::DynamicImage {
@@ -163,7 +163,7 @@ $ img-optim -t photo.jpg diagram.png
   Total: 309.3 KB -> 49.7 KB (-84%)
 ```
 
-And a real one from this week, the hero at the top of this post as it came out of an image model:
+And a real one from September, the hero at the top of this post as it came out of an image model:
 
 ```
   hero.jpg -> hero.webp (175.2 KB -> 67.7 KB, -61%)
@@ -213,14 +213,12 @@ rm content/blog/my-post/*.jpg
 
 ## What the template does
 
-`featured_image` drives four things:
+A post without `featured_image` renders as text only, with no placeholder and no broken layout. A post with one changes in four places:
 
 - **The post header.** The title and description sit on the picture, under a dark gradient, so the article starts one band sooner than it did when the picture came after the title.
 - **The front page.** Featured cards get the same treatment, the lead card with the full hero and the other two with their thumbnails.
 - **The PDF.** The hero appears on the first page.
-- **Social sharing.** Every post has a 1200x630 card at `/og/<slug>.png`. With a hero and no better card, the title is composed over the hero. How the better cards are made is its own post.
-
-A post without `featured_image` renders exactly as before. Text only, no placeholder, no broken layout.
+- **Social sharing.** Every post has a 1200x630 card at `/og/<slug>.png`. With a hero and no better card, the title is composed over the hero. How the better cards are made is [its own post](https://lindfors.no/blog/generated-illustrations/).
 
 ## Format recommendations
 
@@ -238,10 +236,10 @@ Two things did not go the way the February version of this post expected, and on
 
 **No photograph ever arrived.** Every picture on this site today is a hero image, and every one of them is generated. The sensor rigs and the salmon farms are still in my head. The tool that was built for DSLR photographs has converted only illustrations, which it does not know or care about.
 
-**The tool grew.** It is 531 lines now, with tests, up from 325. A `-q` given as the last argument used to panic by indexing past the end of argv, so the argument parsing returns errors instead. Quality is bounded to 0 to 100, because libwebp clamps silently: `-q 900` encoded at 100 and looked like it had worked. Animated GIFs convert to animated WebP. And the build refuses to run with an unconverted JPEG or PNG under `content/`, because `deploy.sh` runs `git add -A`, and a forgotten 4 MB source would be in the history for good. That check has already caught one file, a card that the generation tool wrote as a JPEG.
+**The tool grew.** It is 531 lines now, with tests, up from 325. A `-q` given as the last argument used to panic by indexing past the end of argv, so the argument parsing returns errors instead. Quality is bounded to 0 to 100, because libwebp clamps silently: `-q 900` encoded at 100 and looked like it had worked. And the build refuses to run with an unconverted JPEG or PNG under `content/`, because `deploy.sh` runs `git add -A`, and a forgotten 4 MB source would be in the history for good. That check has already caught one file, a card that the generation tool wrote as a JPEG.
 
 **Git is fine.** Thirteen posts with heroes, thumbnails and cards come to under 2 MB of images. The table above still has three zeros to spare.
 
 ## A note on the hero image
 
-The hero on this post was originally generated with Qwen-Image-2.0, Alibaba's open model from February 2026, as a decorative anchor for a post about an abstract topic. In September it was replaced with the drawer of prints at the top of the page, drawn by a different model in the style every post now shares. It went through `img-optim` like anything else: 175 KB of JPEG to a 68 KB WebP with a 16 KB thumbnail. The same picture is now the style reference that every other hero on the site is drawn against, which is the next post.
+The hero on this post was originally generated with Qwen-Image-2.0, Alibaba's open model from February 2026, as a decorative anchor for a post about an abstract topic. In September it was replaced with the drawer of prints at the top of the page, drawn by a different model in the style every post now shares. It went through `img-optim` like anything else: 175 KB of JPEG to a 68 KB WebP with a 16 KB thumbnail. The same picture is now the style reference that every other hero on the site is drawn against. [Generated illustrations, without the blog looking generated](https://lindfors.no/blog/generated-illustrations/) is about how.
